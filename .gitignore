@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+
+# Kotlin / Compilers
+.kotlin/
+bin/
+out/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# Windows / OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Installers and heavy binary distributions (GitHub blocks files > 100MB)
+dist_installer/
+*.exe
+*.msi
+
+# Logs
+*.log

@@ -16,6 +16,7 @@ fun FrameWindowScope.AppMenuBar(
     onSave: () -> Unit,
     onExportSql: () -> Unit,
     onExportAccdb: () -> Unit,
+    onExportExcel: () -> Unit = {},
     onCloseDatabase: () -> Unit,
     onExit: () -> Unit,
     onNavigate: (Screen) -> Unit,
@@ -28,6 +29,7 @@ fun FrameWindowScope.AppMenuBar(
             Separator()
             Item("Guardar", onClick = onSave, enabled = hasDatabase)
             Separator()
+            Item("Exportar como Excel (.xlsx)...", onClick = onExportExcel, enabled = hasDatabase)
             Item("Exportar como SQL...", onClick = onExportSql, enabled = hasDatabase)
             Item("Exportar como Access (.accdb)...", onClick = onExportAccdb, enabled = hasDatabase)
             Separator()

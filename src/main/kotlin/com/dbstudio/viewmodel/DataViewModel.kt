@@ -85,7 +85,7 @@ class DataViewModel {
 
                 // Fetch relationships and lookups
                 val rels = try {
-                    engine.getRelationships().filter { it.sourceTable == tableName }
+                    engine.getRelationships().filter { it.sourceTable.equals(tableName, ignoreCase = true) }
                 } catch (_: Exception) {
                     emptyList()
                 }
@@ -108,7 +108,8 @@ class DataViewModel {
                     val displayCol = targetInfo?.columns?.firstOrNull { col ->
                         val n = col.name.lowercase()
                         (n.contains("nombre") || n.contains("name") || n.contains("titulo") || n.contains("title") ||
-                         n.contains("materia") || n.contains("descripcion") || n.contains("desc")) &&
+                         n.contains("materia") || n.contains("descripcion") || n.contains("desc") ||
+                         n.contains("usuario") || n.contains("cliente") || n.contains("codigo") || n.contains("detalle")) &&
                                 col.type != ColumnType.AUTOINCREMENT
                     }?.name ?: targetInfo?.columns?.firstOrNull {
                         it.type == ColumnType.TEXT || it.type == ColumnType.VARCHAR
@@ -118,8 +119,12 @@ class DataViewModel {
                     val colOptions = mutableListOf<Pair<String, String>>()
 
                     for (tRow in targetRows) {
-                        val keyVal = tRow[rel.targetColumn]?.toString() ?: continue
-                        val displayVal = tRow[displayCol]?.toString()?.ifBlank { null } ?: keyVal
+                        val keyVal = (tRow[rel.targetColumn]
+                            ?: tRow.entries.firstOrNull { it.key.equals(rel.targetColumn, ignoreCase = true) }?.value)
+                            ?.toString() ?: continue
+                        val displayVal = (tRow[displayCol]
+                            ?: tRow.entries.firstOrNull { it.key.equals(displayCol, ignoreCase = true) }?.value)
+                            ?.toString()?.ifBlank { null } ?: keyVal
                         val label = if (displayCol != rel.targetColumn) "$displayVal (#$keyVal)" else displayVal
                         colLookup[keyVal] = displayVal
                         colOptions.add(keyVal to label)
@@ -127,6 +132,8 @@ class DataViewModel {
 
                     lookups[rel.sourceColumn] = colLookup
                     options[rel.sourceColumn] = colOptions
+                    lookups[rel.sourceColumn.lowercase()] = colLookup
+                    options[rel.sourceColumn.lowercase()] = colOptions
                 }
 
                 withContext(Dispatchers.Main) {
@@ -396,7 +403,9 @@ class DataViewModel {
         val info = tableInfo ?: return emptyMap()
         val pkCols = info.primaryKeys.map { it.name }
         return if (pkCols.isNotEmpty()) {
-            row.filterKeys { it in pkCols }
+            pkCols.associateWith { pk ->
+                row[pk] ?: row.entries.firstOrNull { it.key.equals(pk, ignoreCase = true) }?.value
+            }
         } else {
             row
         }

@@ -44,6 +44,21 @@ fun DataViewScreen(
         }
     }
 
+    // Plan B: Auto-refresco en segundo plano periódico si el usuario olvida hacer clic en "Refrescar"
+    LaunchedEffect(tableName) {
+        while (true) {
+            kotlinx.coroutines.delay(3500)
+            if (tableName != null && engine != null &&
+                !viewModel.isLoading &&
+                !viewModel.showInsertDialog &&
+                !viewModel.showEditDialog &&
+                !viewModel.showDeleteConfirm
+            ) {
+                viewModel.refreshSilently(engine)
+            }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -156,7 +171,7 @@ fun DataViewScreen(
                                                     appendLine(cols.joinToString(","))
                                                     allRows.forEach { row ->
                                                         appendLine(cols.joinToString(",") { col ->
-                                                            val v = row[col]?.toString() ?: ""
+                                                            val v = (row[col] ?: row.entries.firstOrNull { it.key.equals(col, ignoreCase = true) }?.value)?.toString() ?: ""
                                                             if (v.contains(",") || v.contains("\"") || v.contains("\n"))
                                                                 "\"${v.replace("\"", "\"\"")}\""
                                                             else v
@@ -314,7 +329,8 @@ fun DataViewScreen(
                             )
                         }
                         columns.forEach { col ->
-                            val hasFk = col.name in viewModel.relationshipLookups
+                            val hasFk = col.name in viewModel.relationshipLookups ||
+                                    viewModel.relationshipLookups.keys.any { it.equals(col.name, ignoreCase = true) }
                             Box(
                                 modifier = Modifier
                                     .width(170.dp)
@@ -330,8 +346,14 @@ fun DataViewScreen(
                                         Icon(Icons.Default.Link, contentDescription = null, tint = AppColors.foreignKey, modifier = Modifier.size(13.dp))
                                         Spacer(Modifier.width(4.dp))
                                     }
+                                    val isFk = hasFk || col.name.endsWith("_id", ignoreCase = true) || col.name.startsWith("id_", ignoreCase = true)
+                                    val displayName = if (isFk && !col.isPrimaryKey) {
+                                        col.name.removeSuffix("_id").removeSuffix("_ID").removePrefix("id_").removePrefix("ID_")
+                                    } else {
+                                        col.name
+                                    }
                                     Text(
-                                        col.name,
+                                        displayName,
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         maxLines = 1,
@@ -413,7 +435,10 @@ fun DataViewScreen(
                                         contentAlignment = Alignment.CenterStart
                                     ) {
                                         val rawValue = row[col.name]
-                                        val resolvedFk = viewModel.relationshipLookups[col.name]?.get(rawValue?.toString())
+                                            ?: row.entries.firstOrNull { it.key.equals(col.name, ignoreCase = true) }?.value
+                                        val lookupMap = viewModel.relationshipLookups[col.name]
+                                            ?: viewModel.relationshipLookups.entries.firstOrNull { it.key.equals(col.name, ignoreCase = true) }?.value
+                                        val resolvedFk = lookupMap?.get(rawValue?.toString())
 
                                         if (resolvedFk != null) {
                                             // Render resolved relation name

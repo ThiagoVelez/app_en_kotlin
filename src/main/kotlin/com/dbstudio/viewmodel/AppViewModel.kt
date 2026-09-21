@@ -83,6 +83,9 @@ class AppViewModel {
 
     fun navigateTo(screen: Screen) {
         currentScreen = screen
+        if (screen == Screen.DATA_VIEW || screen == Screen.OVERVIEW) {
+            notifyDataChanged()
+        }
     }
 
     // ── Database Operations ─────────────────────────────────────────
@@ -193,6 +196,7 @@ class AppViewModel {
 
     fun selectTable(name: String?) {
         selectedTable = name
+        notifyDataChanged()
     }
 
     fun createTable(name: String) {
@@ -335,6 +339,30 @@ class AppViewModel {
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     errorMessage = "Error al exportar: ${e.message}"
+                }
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    fun exportToExcel(outputPath: String) {
+        val eng = engine ?: return
+        val dbName = databaseInfo?.name ?: "BaseDeDatos"
+        scope.launch {
+            try {
+                isLoading = true
+                errorMessage = null
+                withContext(Dispatchers.IO) {
+                    ExcelExporter.exportDatabase(eng, dbName, File(outputPath))
+                }
+                withContext(Dispatchers.Main) {
+                    statusMessage = "Base de datos exportada exitosamente a Excel en '$outputPath'"
+                }
+            } catch (e: Throwable) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    errorMessage = "Error al exportar a Excel: ${e.message ?: e.javaClass.simpleName}"
                 }
             } finally {
                 isLoading = false

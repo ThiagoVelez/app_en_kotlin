@@ -94,6 +94,20 @@ fun main() = application {
                     }
                 }
             },
+            onExportExcel = {
+                val info: DatabaseInfo? = appViewModel.databaseInfo
+                if (info != null) {
+                    val path: String? = FileChooser.saveFile(
+                        title = "Exportar Base de Datos a Excel",
+                        defaultName = "${info.name}.xlsx",
+                        extension = "xlsx",
+                        description = "Libro de Excel (*.xlsx)"
+                    )
+                    if (path != null) {
+                        appViewModel.exportToExcel(path)
+                    }
+                }
+            },
             onCloseDatabase = { appViewModel.closeDatabase() },
             onExit = {
                 appViewModel.cleanup()

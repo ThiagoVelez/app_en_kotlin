@@ -58,7 +58,8 @@ fun RelationshipDialog(
     var onDeleteExpanded by remember { mutableStateOf(false) }
     var onUpdateExpanded by remember { mutableStateOf(false) }
 
-    val sourceColumns = remember(sourceTable) {
+    var sourceColumnsRefreshKey by remember { mutableStateOf(0) }
+    val sourceColumns = remember(sourceTable, sourceColumnsRefreshKey) {
         if (sourceTable.isNotEmpty()) {
             try { engine.getTableInfo(sourceTable).columns } catch (_: Exception) { emptyList() }
         } else emptyList()
@@ -68,6 +69,16 @@ fun RelationshipDialog(
             try { engine.getTableInfo(targetTable).columns } catch (_: Exception) { emptyList() }
         } else emptyList()
     }
+
+    val personalColumnNames = remember {
+        setOf(
+            "nombre", "name", "nombres", "apellido", "apellidos", "celular", "telefono",
+            "phone", "mobile", "correo", "email", "mail", "cedula", "dni", "direccion",
+            "address", "descripcion", "observacion", "nota", "comentario", "foto", "avatar"
+        )
+    }
+    val isSuspectPersonalColumn = sourceColumn.isNotBlank() &&
+            personalColumnNames.any { it.equals(sourceColumn.trim(), ignoreCase = true) }
 
     fun loadForEdit(rel: Relationship) {
         editingRel = rel
@@ -295,7 +306,8 @@ fun RelationshipDialog(
                                     text = { Text(name) },
                                     onClick = {
                                         targetTable = name
-                                        targetColumn = ""
+                                        val pk = try { engine.getTableInfo(name).columns.firstOrNull { it.isPrimaryKey }?.name } catch (_: Exception) { null }
+                                        targetColumn = pk ?: ""
                                         targetTableExpanded = false
                                     }
                                 )
@@ -330,6 +342,110 @@ fun RelationshipDialog(
                                         targetColumn = col.name
                                         targetColumnExpanded = false
                                     }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Helper: Quick Foreign Key Column creation in source table
+                if (sourceTable.isNotBlank() && targetTable.isNotBlank() && sourceTable != targetTable) {
+                    val suggestedFkCol = "${targetTable.lowercase()}_id"
+                    val sourceHasFk = sourceColumns.any {
+                        it.name.equals(suggestedFkCol, ignoreCase = true) ||
+                        it.name.equals("id_${targetTable.lowercase()}", ignoreCase = true)
+                    }
+                    if (!sourceHasFk) {
+                        OutlinedButton(
+                            onClick = {
+                                try {
+                                    val targetPk = targetColumns.firstOrNull { it.isPrimaryKey }
+                                    val fkType = targetPk?.type ?: ColumnType.INTEGER
+                                    engine.addColumn(sourceTable, Column(name = suggestedFkCol, type = fkType, isNullable = true))
+                                    sourceColumnsRefreshKey++
+                                    sourceColumn = suggestedFkCol
+                                    successMessage = "Columna '$suggestedFkCol' creada en '$sourceTable' y seleccionada como FK"
+                                } catch (e: Exception) {
+                                    errorMessage = "Error al crear la columna: ${e.message}"
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.AddCircleOutline, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Crear y usar columna '$suggestedFkCol' en '$sourceTable' (Recomendado)", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+
+                // Warning if user selects a personal data column as foreign key
+                if (isSuspectPersonalColumn) {
+                    Surface(
+                        color = Color(0xFFFEF3C7),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFD97706),
+                                modifier = Modifier.size(20.dp).padding(top = 2.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    "Advertencia sobre '$sourceColumn'",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF92400E),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text(
+                                    "Has seleccionado una columna de datos personales ('$sourceColumn') como Clave Foránea. Las relaciones deben enlazar identificadores numéricos (ej. '${targetTable.lowercase().ifBlank { "tabla" }}_id'), no nombres ni teléfonos. Esto evita que tus datos se alteren o queden inaccesibles.",
+                                    color = Color(0xFF78350F),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                }
+
+                val isSourceColPk = sourceColumns.firstOrNull { it.name.equals(sourceColumn, ignoreCase = true) }?.isPrimaryKey == true
+                if (isSourceColPk && sourceColumn.isNotBlank()) {
+                    Surface(
+                        color = Color(0xFFFEF3C7),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFD97706),
+                                modifier = Modifier.size(20.dp).padding(top = 2.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    "Advertencia: '$sourceColumn' es la Clave Primaria de '$sourceTable'",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF92400E),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text(
+                                    "Has seleccionado la Clave Primaria única de la tabla. Al ser la PK, cada fila de '$sourceTable' debe tener un ID único y no podrá asociarse a la misma opción que otra fila (ej. dos personas no podrán elegir el mismo curso ni cambiar de opción libremente al editar). Usa el botón de arriba para crear una columna foránea dedicada (ej. '${targetTable.lowercase().ifBlank { "tabla" }}_id').",
+                                    color = Color(0xFF78350F),
+                                    style = MaterialTheme.typography.bodySmall
                                 )
                             }
                         }

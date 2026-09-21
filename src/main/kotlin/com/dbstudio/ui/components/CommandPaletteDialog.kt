@@ -121,8 +121,30 @@ fun CommandPaletteDialog(
         )
         actions.add(
             PaletteAction(
+                title = "Exportar a Excel (.xlsx)",
+                subtitle = "Exportar todas las tablas a un único libro Excel con pestañas",
+                icon = Icons.Default.FileDownload,
+                category = "Acciones",
+                onExecute = {
+                    val info = appViewModel.databaseInfo
+                    if (info != null) {
+                        val path = FileChooser.saveFile(
+                            title = "Exportar Base de Datos a Excel",
+                            defaultName = "${info.name}.xlsx",
+                            extension = "xlsx",
+                            description = "Libro de Excel (*.xlsx)"
+                        )
+                        if (path != null) {
+                            appViewModel.exportToExcel(path)
+                        }
+                    }
+                }
+            )
+        )
+        actions.add(
+            PaletteAction(
                 title = "Exportar Base de Datos",
-                subtitle = "Guardar como script SQL o archivo Access",
+                subtitle = "Guardar como script SQL, archivo Access o Excel",
                 icon = Icons.Default.FileDownload,
                 category = "Acciones",
                 onExecute = { appViewModel.showExportDialog = true }

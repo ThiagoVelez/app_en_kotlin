@@ -3,6 +3,7 @@
 package com.dbstudio.ui.components
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.dbstudio.model.*
@@ -231,16 +233,19 @@ fun RowEditDialog(
     onSave: (Map<String, String?>) -> Unit
 ) {
     val isEditing = initialValues.isNotEmpty()
+    var showAdvancedFkFields by remember { mutableStateOf(false) }
     val values = remember {
         mutableStateMapOf<String, String>().apply {
             columns.forEach { col ->
-                val init = initialValues[col.name]?.toString() ?: ""
+                val init = initialValues[col.name]?.toString()
+                    ?: initialValues.entries.firstOrNull { it.key.equals(col.name, ignoreCase = true) }?.value?.toString()
+                    ?: ""
                 put(col.name, init)
             }
         }
     }
 
-    // Auto-fill creation timestamp if empty
+    // Auto-fill creation timestamp and auto-fill foreign key if empty (Plan B)
     LaunchedEffect(Unit) {
         columns.forEach { col ->
             val colLower = col.name.lowercase()
@@ -248,6 +253,12 @@ fun RowEditDialog(
                 values[col.name].isNullOrBlank() && !isEditing
             ) {
                 values[col.name] = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+            }
+            // Auto-assign foreign key (Plan B)
+            val fkOpts = foreignKeyOptions[col.name]
+                ?: foreignKeyOptions.entries.firstOrNull { it.key.equals(col.name, ignoreCase = true) }?.value
+            if (!fkOpts.isNullOrEmpty() && values[col.name].isNullOrBlank()) {
+                values[col.name] = fkOpts.first().first
             }
         }
     }
@@ -282,9 +293,16 @@ fun RowEditDialog(
                 )
 
                 columns.forEach { col ->
-                    val isAutoInc = col.isAutoIncrement
                     val colNameLower = col.name.lowercase()
                     val fkOpts = foreignKeyOptions[col.name]
+                        ?: foreignKeyOptions.entries.firstOrNull { it.key.equals(col.name, ignoreCase = true) }?.value
+                    val isPk = col.isPrimaryKey
+                    val isAutoInc = (col.isAutoIncrement && fkOpts.isNullOrEmpty()) || (isEditing && isPk)
+                    val isTechnicalFk = !isPk && (!fkOpts.isNullOrEmpty() || col.name.endsWith("_id", ignoreCase = true) || col.name.startsWith("id_", ignoreCase = true))
+
+                    if (isTechnicalFk && !showAdvancedFkFields) {
+                        return@forEach
+                    }
 
                     if (isAutoInc) {
                         // ID Autoincremental badge / box
@@ -306,15 +324,23 @@ fun RowEditDialog(
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
-                                        if (isEditing) "ID actual: #${values[col.name]}"
+                                        if (isEditing) "ID actual: #${values[col.name]} (Identificador único de la fila)"
                                         else "Autoincremental (se asignará automáticamente al guardar)",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                    if (isEditing && isPk && !fkOpts.isNullOrEmpty()) {
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            "Aviso: Esta columna es la Clave Primaria de la fila y no se puede cambiar. Para vincular esta tabla con otra libremente, usa una columna de Clave Foránea dedicada (ej. 'tabla_id').",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFFB45309)
+                                        )
+                                    }
                                 }
                             }
                         }
-                    } else if (fkOpts != null) {
+                    } else if (fkOpts != null && fkOpts.isNotEmpty()) {
                         // Related Table Column -> Dropdown
                         var dropdownExpanded by remember { mutableStateOf(false) }
                         val currentKey = values[col.name]
@@ -337,11 +363,7 @@ fun RowEditDialog(
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
                                 modifier = Modifier.menuAnchor().fillMaxWidth(),
                                 supportingText = {
-                                    if (fkOpts.isEmpty()) {
-                                        Text("⚠️ No hay registros en la tabla relacionada. Registra datos en ella primero.")
-                                    } else {
-                                        Text("Opciones disponibles: ${fkOpts.size}")
-                                    }
+                                    Text("Opciones disponibles: ${fkOpts.size}")
                                 }
                             )
                             ExposedDropdownMenu(
@@ -374,6 +396,20 @@ fun RowEditDialog(
                                 }
                             }
                         }
+                    } else if (fkOpts != null && fkOpts.isEmpty()) {
+                        // Foreign Key column but target table has no rows yet: allow manual entry
+                        OutlinedTextField(
+                            value = values[col.name] ?: "",
+                            onValueChange = { values[col.name] = it },
+                            label = { Text("${col.name} (🔗 Clave Foránea)") },
+                            leadingIcon = {
+                                Icon(Icons.Default.Link, contentDescription = null, tint = AppColors.foreignKey)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            supportingText = {
+                                Text("La tabla relacionada aún no tiene registros; puedes escribir un ID manualmente.")
+                            }
+                        )
                     } else if (colNameLower.contains("cedula") || colNameLower.contains("dni") || colNameLower.contains("identificacion")) {
                         // Cédula: Numeric only
                         OutlinedTextField(
@@ -443,6 +479,56 @@ fun RowEditDialog(
                         )
                     }
                 }
+
+                // Plan B: Automatic Relationship Banner (Hides technical FKs and shows clean summary)
+                val fkCols = columns.filter {
+                    !it.isPrimaryKey && (!foreignKeyOptions[it.name].isNullOrEmpty() || it.name.endsWith("_id", ignoreCase = true) || it.name.startsWith("id_", ignoreCase = true))
+                }
+                if (fkCols.isNotEmpty()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AutoMode, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "Enlace automático de relación (Plan B activo)",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            fkCols.forEach { col ->
+                                val opts = foreignKeyOptions[col.name]
+                                    ?: foreignKeyOptions.entries.firstOrNull { it.key.equals(col.name, ignoreCase = true) }?.value
+                                val curKey = values[col.name]
+                                val selectedLabel = opts?.find { it.first == curKey }?.second ?: (if (curKey.isNullOrBlank()) "Automático" else "ID #$curKey")
+                                val cleanName = col.name.removeSuffix("_id").removeSuffix("_ID").removePrefix("id_").removePrefix("ID_")
+                                Text(
+                                    "• $cleanName: $selectedLabel (guardado en segundo plano)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(
+                                    onClick = { showAdvancedFkFields = !showAdvancedFkFields },
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        if (showAdvancedFkFields) "Ocultar campos técnicos" else "Cambiar relación manualmente...",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -450,7 +536,12 @@ fun RowEditDialog(
                 val result = mutableMapOf<String, String?>()
                 columns.forEach { col ->
                     if (!col.isAutoIncrement || isEditing) {
-                        val v = values[col.name]
+                        var v = values[col.name]
+                        val fkOpts = foreignKeyOptions[col.name]
+                            ?: foreignKeyOptions.entries.firstOrNull { it.key.equals(col.name, ignoreCase = true) }?.value
+                        if (v.isNullOrBlank() && !fkOpts.isNullOrEmpty()) {
+                            v = fkOpts.first().first
+                        }
                         result[col.name] = if (v.isNullOrBlank()) null else v.trim()
                     }
                 }
@@ -505,7 +596,9 @@ fun ColumnEditDialog(
                 if (initialColumn == null) {
                     Text("Plantillas Rápidas:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         listOf(
@@ -513,6 +606,7 @@ fun ColumnEditDialog(
                             "Nombre" to ColumnPresets.nombre(),
                             "Apellido" to ColumnPresets.apellido(),
                             "Correo" to ColumnPresets.correo(),
+                            "Celular" to ColumnPresets.celular(),
                             "Fecha" to ColumnPresets.fechaCreacion()
                         ).forEach { (label, preset) ->
                             SuggestionChip(
@@ -677,9 +771,10 @@ fun ExportDialog(
     databaseName: String,
     onDismiss: () -> Unit,
     onExportSql: (String) -> Unit,
-    onExportAccdb: (String) -> Unit
+    onExportAccdb: (String) -> Unit,
+    onExportExcel: (String) -> Unit = {}
 ) {
-    var exportType by remember { mutableStateOf("sql") }
+    var exportType by remember { mutableStateOf("xlsx") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -693,38 +788,55 @@ fun ExportDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Selecciona el formato de exportación:")
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = exportType == "xlsx",
+                        onClick = { exportType = "xlsx" },
+                        label = { Text("Excel (.xlsx)") }
+                    )
                     FilterChip(
                         selected = exportType == "sql",
                         onClick = { exportType = "sql" },
-                        label = { Text("Script SQL (.sql)") }
+                        label = { Text("SQL (.sql)") }
                     )
                     FilterChip(
                         selected = exportType == "accdb",
                         onClick = { exportType = "accdb" },
-                        label = { Text("Microsoft Access (.accdb)") }
+                        label = { Text("Access (.accdb)") }
                     )
                 }
             }
         },
         confirmButton = {
             Button(onClick = {
-                if (exportType == "sql") {
-                    val path = FileChooser.saveFile(
-                        title = "Exportar como SQL",
-                        defaultName = "$databaseName.sql",
-                        extension = "sql",
-                        description = "Archivos SQL (*.sql)"
-                    )
-                    if (path != null) onExportSql(path)
-                } else {
-                    val path = FileChooser.saveFile(
-                        title = "Exportar como Access",
-                        defaultName = "$databaseName.accdb",
-                        extension = "accdb",
-                        description = "Base de datos Access (*.accdb)"
-                    )
-                    if (path != null) onExportAccdb(path)
+                when (exportType) {
+                    "xlsx" -> {
+                        val path = FileChooser.saveFile(
+                            title = "Exportar Base de Datos a Excel",
+                            defaultName = "$databaseName.xlsx",
+                            extension = "xlsx",
+                            description = "Libro de Excel (*.xlsx)"
+                        )
+                        if (path != null) onExportExcel(path)
+                    }
+                    "sql" -> {
+                        val path = FileChooser.saveFile(
+                            title = "Exportar como SQL",
+                            defaultName = "$databaseName.sql",
+                            extension = "sql",
+                            description = "Archivos SQL (*.sql)"
+                        )
+                        if (path != null) onExportSql(path)
+                    }
+                    "accdb" -> {
+                        val path = FileChooser.saveFile(
+                            title = "Exportar como Access",
+                            defaultName = "$databaseName.accdb",
+                            extension = "accdb",
+                            description = "Base de datos Access (*.accdb)"
+                        )
+                        if (path != null) onExportAccdb(path)
+                    }
                 }
             }) {
                 Text("Exportar")

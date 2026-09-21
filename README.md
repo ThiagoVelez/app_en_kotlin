@@ -11,6 +11,7 @@
 - 📋 **Explorador de Datos:** Edición, filtrado, ordenación, inserción y eliminación de registros directamente en una cuadrícula interactiva.
 - 💻 **Consola SQL:** Editor SQL integrado con resaltado de sintaxis, ejecución de consultas multilínea y visualización de resultados.
 - 🕸️ **Diagrama Entidad-Relación (ER):** Visualización interactiva de esquemas de datos con detección de claves foráneas y relaciones entre tablas.
+- 📑 **Exportación Completa a Excel (.xlsx):** Exporta toda la base de datos a un único archivo Excel con una pestaña/hoja por cada tabla con estilos y auto-ajuste de columnas.
 - 🔄 **Interoperabilidad:** Soporte nativo para SQLite y Microsoft Access (.accdb) mediante UCanAccess.
 - 📖 **Manual de Usuario Integrado:** Documentación contextual accesible desde el panel lateral o presionando `F1`.
 - 🌓 **Modo Oscuro y Modo Claro:** Tema adaptable y moderno.
@@ -23,6 +24,7 @@
 - **Lenguaje:** Kotlin 2.x
 - **UI Framework:** Compose Multiplatform (Desktop) con Material 3
 - **Bases de Datos:** SQLite JDBC, UCanAccess (MS Access)
+- **Generación de Hojas de Cálculo:** Apache POI (OOXML)
 - **Concurrencia:** Kotlin Coroutines
 - **Construcción e Instalación:** Gradle, Inno Setup 6
 

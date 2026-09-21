@@ -78,7 +78,21 @@ fun App(
                         },
                         isDarkMode = appViewModel.isDarkMode,
                         onToggleDarkMode = { appViewModel.toggleDarkMode() },
-                        onShowUserManual = { appViewModel.showUserManual = true }
+                        onShowUserManual = { appViewModel.showUserManual = true },
+                        onExportExcel = {
+                            val info = appViewModel.databaseInfo
+                            if (info != null) {
+                                val path = com.dbstudio.ui.components.FileChooser.saveFile(
+                                    title = "Exportar Base de Datos a Excel",
+                                    defaultName = "${info.name}.xlsx",
+                                    extension = "xlsx",
+                                    description = "Libro de Excel (*.xlsx)"
+                                )
+                                if (path != null) {
+                                    appViewModel.exportToExcel(path)
+                                }
+                            }
+                        }
                     )
 
                     // ── Main Content Area ────────────────────────
@@ -250,6 +264,10 @@ fun App(
                 onExportAccdb = { path ->
                     appViewModel.exportToAccdb(path)
                     appViewModel.showExportDialog = false
+                },
+                onExportExcel = { path ->
+                    appViewModel.exportToExcel(path)
+                    appViewModel.showExportDialog = false
                 }
             )
         }
@@ -258,9 +276,13 @@ fun App(
         if (appViewModel.showRelationshipDialog && appViewModel.getEngine() != null) {
             RelationshipDialog(
                 engine = appViewModel.getEngine()!!,
-                onDismiss = { appViewModel.showRelationshipDialog = false },
+                onDismiss = {
+                    appViewModel.showRelationshipDialog = false
+                    appViewModel.notifyDataChanged()
+                },
                 onCreated = {
                     appViewModel.refreshTables()
+                    appViewModel.notifyDataChanged()
                     appViewModel.showRelationshipDialog = false
                     if (appViewModel.currentScreen == Screen.DIAGRAM) {
                         appViewModel.getEngine()?.let { diagramViewModel.loadDiagram(it) }
@@ -268,12 +290,14 @@ fun App(
                 },
                 onUpdated = { _, _ ->
                     appViewModel.refreshTables()
+                    appViewModel.notifyDataChanged()
                     if (appViewModel.currentScreen == Screen.DIAGRAM) {
                         appViewModel.getEngine()?.let { diagramViewModel.loadDiagram(it) }
                     }
                 },
                 onDeleted = {
                     appViewModel.refreshTables()
+                    appViewModel.notifyDataChanged()
                     if (appViewModel.currentScreen == Screen.DIAGRAM) {
                         appViewModel.getEngine()?.let { diagramViewModel.loadDiagram(it) }
                     }

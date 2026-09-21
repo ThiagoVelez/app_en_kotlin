@@ -49,6 +49,7 @@ fun Sidebar(
     isDarkMode: Boolean = false,
     onToggleDarkMode: () -> Unit = {},
     onShowUserManual: () -> Unit = {},
+    onExportExcel: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -65,6 +66,18 @@ fun Sidebar(
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
+            val sidebarScrollState = rememberScrollState()
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(sidebarScrollState)
+                ) {
 
             // ── Database Header Card ────────────────────────────────
             Surface(
@@ -314,6 +327,50 @@ fun Sidebar(
                     )
                 }
 
+                Spacer(Modifier.height(4.dp))
+
+                // Botón Exportar a Excel (.xlsx)
+                OutlinedButton(
+                    onClick = onExportExcel,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 2.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, if (isDarkMode) Color(0xFF15803D) else Color(0xFF16A34A).copy(alpha = 0.5f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isDarkMode) Color(0xFF14532D).copy(alpha = 0.25f) else Color(0xFFDCFCE7).copy(alpha = 0.5f)
+                    ),
+                    contentPadding = PaddingValues(vertical = 7.dp)
+                ) {
+                    Icon(
+                        Icons.Default.FileDownload,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = if (isDarkMode) Color(0xFF4ADE80) else Color(0xFF15803D)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Exportar a Excel",
+                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (isDarkMode) Color(0xFF4ADE80) else Color(0xFF15803D)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Surface(
+                        color = if (isDarkMode) Color(0xFF16A34A).copy(alpha = 0.4f) else Color(0xFF16A34A),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text(
+                            ".xlsx",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+
                 Spacer(Modifier.height(6.dp))
 
                 // Section header with table count & relation shortcut
@@ -401,13 +458,10 @@ fun Sidebar(
                     )
                 }
 
-                // Scrollable Table List
-                val scrollState = rememberScrollState()
+                // Table List
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
-                        .verticalScroll(scrollState)
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     if (tables.isEmpty()) {
@@ -565,7 +619,7 @@ fun Sidebar(
             } else {
                 // Empty state when no database is open
                 Box(
-                    modifier = Modifier.weight(1f).fillMaxWidth().padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -576,16 +630,23 @@ fun Sidebar(
                     )
                 }
             }
+        }
 
-            // ── Bottom Section: Manual & Dark/Light Mode ──────────────
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                // User Manual button
+        VerticalScrollbar(
+            adapter = rememberScrollbarAdapter(sidebarScrollState),
+            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight()
+        )
+    }
+
+    // ── Bottom Section: Manual & Dark/Light Mode ──────────────
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        // User Manual button
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()

@@ -96,6 +96,13 @@ object ColumnPresets {
         isNullable = true
     )
 
+    fun celular() = Column(
+        name = "celular",
+        type = ColumnType.VARCHAR,
+        length = 20,
+        isNullable = true
+    )
+
     fun fechaCreacion() = Column(
         name = "fecha_creacion",
         type = ColumnType.DATETIME,

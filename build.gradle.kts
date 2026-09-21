@@ -13,6 +13,7 @@ dependencies {
 
     implementation(libs.sqlite.jdbc)
     implementation(libs.ucanaccess)
+    implementation(libs.poi.ooxml)
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.swing)
     testImplementation(kotlin("test"))
@@ -25,7 +26,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "DataBaseStudio"
-            packageVersion = "1.0.0"
+            packageVersion = "2.0.0"
             description = "DataBase Studio - SQLite & Access Manager"
             vendor = "DataBaseStudio"
 

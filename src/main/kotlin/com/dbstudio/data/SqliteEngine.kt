@@ -13,8 +13,10 @@ import java.sql.Types
 class SqliteEngine : DatabaseEngine {
 
     private var connection: Connection? = null
+    private var dbPath: String? = null
+    private val lock = Any()
 
-    override val isConnected: Boolean get() = connection != null && !connection!!.isClosed
+    override val isConnected: Boolean get() = synchronized(lock) { connection != null && !connection!!.isClosed }
     override val databaseType: DatabaseType = DatabaseType.SQLITE
 
     companion object {
@@ -25,7 +27,7 @@ class SqliteEngine : DatabaseEngine {
         }
     }
 
-    override fun connect(path: String, create: Boolean) {
+    override fun connect(path: String, create: Boolean) = synchronized(lock) {
         if (isConnected) disconnect()
         val file = File(path)
         if (!create && !file.exists()) {
@@ -39,21 +41,39 @@ class SqliteEngine : DatabaseEngine {
         } catch (_: Throwable) {}
 
         val normalizedPath = file.absolutePath.replace('\\', '/')
-        connection = DriverManager.getConnection("jdbc:sqlite:$normalizedPath")
+        val conn = DriverManager.getConnection("jdbc:sqlite:$normalizedPath")
         // Enable foreign keys
-        connection!!.createStatement().use { it.execute("PRAGMA foreign_keys = ON;") }
+        conn.createStatement().use { it.execute("PRAGMA foreign_keys = ON;") }
+        connection = conn
+        dbPath = path
     }
 
-    override fun disconnect() {
-        connection?.close()
+    override fun disconnect() = synchronized(lock) {
+        try {
+            connection?.close()
+        } catch (_: Throwable) {}
         connection = null
     }
 
-    private fun conn(): Connection = connection ?: throw IllegalStateException("Not connected to any database")
+    internal fun conn(): Connection = synchronized(lock) {
+        val current = connection
+        if (current == null || current.isClosed) {
+            val path = dbPath ?: throw IllegalStateException("Not connected to any database")
+            val file = File(path)
+            if (!file.exists()) {
+                throw IllegalStateException("El archivo de base de datos no existe: $path")
+            }
+            val normalizedPath = file.absolutePath.replace('\\', '/')
+            val conn = DriverManager.getConnection("jdbc:sqlite:$normalizedPath")
+            conn.createStatement().use { it.execute("PRAGMA foreign_keys = ON;") }
+            connection = conn
+        }
+        connection!!
+    }
 
     // ── Schema: Tables ──────────────────────────────────────────────
 
-    override fun getTableNames(): List<String> {
+    override fun getTableNames(): List<String> = synchronized(lock) {
         val tables = mutableListOf<String>()
         conn().createStatement().use { stmt ->
             stmt.executeQuery(
@@ -64,10 +84,10 @@ class SqliteEngine : DatabaseEngine {
                 }
             }
         }
-        return tables
+        tables
     }
 
-    override fun getTableInfo(tableName: String): TableInfo {
+    override fun getTableInfo(tableName: String): TableInfo = synchronized(lock) {
         val columns = mutableListOf<Column>()
         // Get primary key columns first
         val pkColumns = mutableSetOf<String>()
@@ -151,22 +171,22 @@ class SqliteEngine : DatabaseEngine {
             if (col.name in uniqueCols && !col.isPrimaryKey) col.copy(isUnique = true) else col
         }
 
-        return TableInfo(name = tableName, columns = finalColumns)
+        TableInfo(name = tableName, columns = finalColumns)
     }
 
-    override fun createTable(table: TableInfo) {
+    override fun createTable(table: TableInfo): Unit = synchronized(lock) {
         conn().createStatement().use { stmt ->
             stmt.execute(table.toCreateSqliteSql())
         }
     }
 
-    override fun dropTable(tableName: String) {
+    override fun dropTable(tableName: String): Unit = synchronized(lock) {
         conn().createStatement().use { stmt ->
             stmt.execute("DROP TABLE IF EXISTS \"$tableName\";")
         }
     }
 
-    override fun renameTable(oldName: String, newName: String) {
+    override fun renameTable(oldName: String, newName: String): Unit = synchronized(lock) {
         conn().createStatement().use { stmt ->
             stmt.execute("ALTER TABLE \"$oldName\" RENAME TO \"$newName\";")
         }
@@ -174,32 +194,62 @@ class SqliteEngine : DatabaseEngine {
 
     // ── Schema: Columns ─────────────────────────────────────────────
 
-    override fun addColumn(tableName: String, column: Column) {
+    override fun addColumn(tableName: String, column: Column): Unit = synchronized(lock) {
         val typeSql = column.toSqliteTypeSql()
         conn().createStatement().use { stmt ->
             stmt.execute("ALTER TABLE \"$tableName\" ADD COLUMN \"${column.name}\" $typeSql;")
         }
     }
 
-    override fun updateTableSchema(tableName: String, newColumns: List<Column>) {
+    override fun updateTableSchema(tableName: String, newColumns: List<Column>): Unit = synchronized(lock) {
+        val oldInfo = getTableInfo(tableName)
+        val oldNames = oldInfo.columns.map { it.name.lowercase() }.toSet()
+        val newNames = newColumns.map { it.name.lowercase() }.toSet()
+        val newColMap = newColumns.associateBy { it.name.lowercase() }
+        val addedCols = newColumns.filter { it.name.lowercase() !in oldNames }
+
+        // Fast path: If all existing columns are preserved and new columns are nullable or have default values
+        val isOnlyAddingColumns = oldNames.all { it in newNames } &&
+                addedCols.isNotEmpty() &&
+                newColumns.size == oldInfo.columns.size + addedCols.size &&
+                oldInfo.columns.all { oldCol ->
+                    val newCol = newColMap[oldCol.name.lowercase()]
+                    newCol != null && newCol.name == oldCol.name && newCol.isPrimaryKey == oldCol.isPrimaryKey
+                } &&
+                addedCols.all { it.isNullable || it.defaultValue != null }
+
+        if (isOnlyAddingColumns) {
+            for (col in addedCols) {
+                addColumn(tableName, col)
+            }
+            return@synchronized
+        }
+
         // SQLite doesn't support ALTER COLUMN, so we recreate the table
         val tempName = "${tableName}_temp_${System.currentTimeMillis()}"
-        val oldInfo = getTableInfo(tableName)
-        val newTable = TableInfo(tempName, newColumns)
+        val existingFks = try {
+            getRelationships().filter { it.sourceTable.equals(tableName, ignoreCase = true) }
+        } catch (_: Exception) { emptyList() }
+
+        val colDefs = newColumns.joinToString(",\n    ") { "\"${it.name}\" ${it.toSqliteTypeSql()}" }
+        val fkDefs = if (existingFks.isNotEmpty()) {
+            ",\n    " + existingFks.joinToString(",\n    ") { it.toSqliteFkClause() }
+        } else ""
+        val createSql = "CREATE TABLE \"$tempName\" (\n    $colDefs$fkDefs\n);"
 
         conn().createStatement().use { it.execute("PRAGMA foreign_keys = OFF;") }
         conn().autoCommit = false
         try {
-            // Create temp table with new schema
-            conn().createStatement().use { it.execute(newTable.toCreateSqliteSql()) }
+            // Create temp table with new schema and existing FK constraints
+            conn().createStatement().use { it.execute(createSql) }
 
-            // Copy data for all columns, supplying safe fallbacks for new NOT NULL columns
-            val commonColumns = oldInfo.columns.map { it.name }.intersect(newColumns.map { it.name }.toSet())
-
+            // Copy data for all columns, matching column names case-insensitively
+            val oldColMap = oldInfo.columns.associateBy { it.name.lowercase() }
             val targetCols = newColumns.joinToString(", ") { "\"${it.name}\"" }
             val selectExpressions = newColumns.map { col ->
-                if (col.name in commonColumns) {
-                    "\"${col.name}\""
+                val matchedOldCol = oldColMap[col.name.lowercase()]
+                if (matchedOldCol != null) {
+                    "\"${matchedOldCol.name}\""
                 } else if (col.defaultValue != null) {
                     col.formattedDefaultValue() ?: "NULL"
                 } else if (col.isNullable) {
@@ -232,6 +282,9 @@ class SqliteEngine : DatabaseEngine {
             conn().commit()
         } catch (e: Exception) {
             conn().rollback()
+            try {
+                conn().createStatement().use { it.execute("DROP TABLE IF EXISTS \"$tempName\";") }
+            } catch (_: Exception) {}
             throw e
         } finally {
             conn().autoCommit = true
@@ -241,7 +294,7 @@ class SqliteEngine : DatabaseEngine {
 
     // ── Schema: Relationships ───────────────────────────────────────
 
-    override fun getRelationships(): List<Relationship> {
+    override fun getRelationships(): List<Relationship> = synchronized(lock) {
         val relationships = mutableListOf<Relationship>()
         val tables = getTableNames()
 
@@ -256,6 +309,21 @@ class SqliteEngine : DatabaseEngine {
                         val onUpdate = rs.getString("on_update") ?: "NO ACTION"
                         val onDelete = rs.getString("on_delete") ?: "NO ACTION"
 
+                        val deleteRule = when (onDelete.uppercase()) {
+                            "CASCADE" -> ReferentialAction.CASCADE
+                            "SET NULL" -> ReferentialAction.SET_NULL
+                            "SET DEFAULT" -> ReferentialAction.SET_DEFAULT
+                            "RESTRICT" -> ReferentialAction.RESTRICT
+                            else -> ReferentialAction.NO_ACTION
+                        }
+                        val updateRule = when (onUpdate.uppercase()) {
+                            "CASCADE" -> ReferentialAction.CASCADE
+                            "SET NULL" -> ReferentialAction.SET_NULL
+                            "SET DEFAULT" -> ReferentialAction.SET_DEFAULT
+                            "RESTRICT" -> ReferentialAction.RESTRICT
+                            else -> ReferentialAction.NO_ACTION
+                        }
+
                         relationships.add(
                             Relationship(
                                 name = "fk_${table}_${fromCol}_${targetTable}_$id",
@@ -264,25 +332,23 @@ class SqliteEngine : DatabaseEngine {
                                 targetTable = targetTable,
                                 targetColumn = toCol,
                                 type = RelationType.ONE_TO_MANY,
-                                onDelete = ReferentialAction.entries.find { it.sql == onDelete }
-                                    ?: ReferentialAction.NO_ACTION,
-                                onUpdate = ReferentialAction.entries.find { it.sql == onUpdate }
-                                    ?: ReferentialAction.NO_ACTION
+                                onDelete = deleteRule,
+                                onUpdate = updateRule
                             )
                         )
                     }
                 }
             }
         }
-        return relationships
+        relationships
     }
 
-    override fun addRelationship(relationship: Relationship) {
+    override fun addRelationship(relationship: Relationship): Unit = synchronized(lock) {
         // SQLite requires table recreation to add FK constraints
         val tableInfo = getTableInfo(relationship.sourceTable)
         val allRels = getRelationships().filter { 
-            it.sourceTable == relationship.sourceTable && 
-            it.sourceColumn != relationship.sourceColumn 
+            it.sourceTable.equals(relationship.sourceTable, ignoreCase = true) && 
+            !it.sourceColumn.equals(relationship.sourceColumn, ignoreCase = true)
         }
         val allFks = allRels + relationship
 
@@ -308,11 +374,8 @@ class SqliteEngine : DatabaseEngine {
             conn().commit()
         } catch (e: Exception) {
             conn().rollback()
-            // Try to recover
             try {
-                conn().createStatement().use { it.execute("DROP TABLE IF EXISTS \"${relationship.sourceTable}\";") }
-                conn().createStatement().use { it.execute("ALTER TABLE \"$tempName\" RENAME TO \"${relationship.sourceTable}\";") }
-                conn().commit()
+                conn().createStatement().use { it.execute("DROP TABLE IF EXISTS \"$tempName\";") }
             } catch (_: Exception) { }
             throw e
         } finally {
@@ -321,11 +384,11 @@ class SqliteEngine : DatabaseEngine {
         }
     }
 
-    override fun removeRelationship(relationshipName: String, sourceTable: String) {
+    override fun removeRelationship(relationshipName: String, sourceTable: String): Unit = synchronized(lock) {
         // Recreate table without the specified FK
         val tableInfo = getTableInfo(sourceTable)
         val allRels = getRelationships()
-            .filter { it.sourceTable == sourceTable && it.name != relationshipName }
+            .filter { it.sourceTable.equals(sourceTable, ignoreCase = true) && it.name != relationshipName }
 
         val colDefs = tableInfo.columns.joinToString(",\n    ") {
             "\"${it.name}\" ${it.toSqliteTypeSql()}"
@@ -350,6 +413,9 @@ class SqliteEngine : DatabaseEngine {
             conn().commit()
         } catch (e: Exception) {
             conn().rollback()
+            try {
+                conn().createStatement().use { it.execute("DROP TABLE IF EXISTS \"$tempName\";") }
+            } catch (_: Exception) { }
             throw e
         } finally {
             conn().autoCommit = true
@@ -359,7 +425,7 @@ class SqliteEngine : DatabaseEngine {
 
     // ── CRUD ────────────────────────────────────────────────────────
 
-    override fun queryAll(tableName: String, limit: Int, offset: Int): List<Map<String, Any?>> {
+    override fun queryAll(tableName: String, limit: Int, offset: Int): List<Map<String, Any?>> = synchronized(lock) {
         val results = mutableListOf<Map<String, Any?>>()
         conn().createStatement().use { stmt ->
             stmt.executeQuery("SELECT * FROM \"$tableName\" LIMIT $limit OFFSET $offset").use { rs ->
@@ -373,24 +439,41 @@ class SqliteEngine : DatabaseEngine {
                 }
             }
         }
-        return results
+        results
     }
 
-    override fun countRows(tableName: String): Int {
+    override fun countRows(tableName: String): Int = synchronized(lock) {
         conn().createStatement().use { stmt ->
             stmt.executeQuery("SELECT COUNT(*) FROM \"$tableName\"").use { rs ->
-                return if (rs.next()) rs.getInt(1) else 0
+                if (rs.next()) rs.getInt(1) else 0
             }
         }
     }
 
-    override fun insertRow(tableName: String, values: Map<String, String?>) {
-        val nonNullValues = values.filterValues { !it.isNullOrBlank() }
+    override fun insertRow(tableName: String, values: Map<String, String?>): Unit = synchronized(lock) {
+        val resolvedValues = values.toMutableMap()
+        val tableRels = try { getRelationships().filter { it.sourceTable.equals(tableName, ignoreCase = true) } } catch (_: Exception) { emptyList() }
+        for (rel in tableRels) {
+            val curVal = resolvedValues[rel.sourceColumn]
+                ?: resolvedValues.entries.firstOrNull { it.key.equals(rel.sourceColumn, ignoreCase = true) }?.value
+            if (curVal.isNullOrBlank()) {
+                val targetRows = try { queryAll(rel.targetTable, limit = 1) } catch (_: Exception) { emptyList() }
+                if (targetRows.isNotEmpty()) {
+                    val defaultVal = targetRows[0][rel.targetColumn]
+                        ?: targetRows[0].entries.firstOrNull { it.key.equals(rel.targetColumn, ignoreCase = true) }?.value
+                    if (defaultVal != null) {
+                        resolvedValues[rel.sourceColumn] = defaultVal.toString()
+                    }
+                }
+            }
+        }
+
+        val nonNullValues = resolvedValues.filterValues { !it.isNullOrBlank() }
         if (nonNullValues.isEmpty()) {
             conn().createStatement().use { stmt ->
                 stmt.execute("INSERT INTO \"$tableName\" DEFAULT VALUES;")
             }
-            return
+            return@synchronized
         }
 
         val cols = nonNullValues.keys.joinToString(", ") { "\"$it\"" }
@@ -405,8 +488,8 @@ class SqliteEngine : DatabaseEngine {
         }
     }
 
-    override fun updateRow(tableName: String, primaryKeyValues: Map<String, Any?>, newValues: Map<String, String?>) {
-        if (newValues.isEmpty() || primaryKeyValues.isEmpty()) return
+    override fun updateRow(tableName: String, primaryKeyValues: Map<String, Any?>, newValues: Map<String, String?>): Unit = synchronized(lock) {
+        if (newValues.isEmpty() || primaryKeyValues.isEmpty()) return@synchronized
         val setClauses = newValues.keys.joinToString(", ") { "\"$it\" = ?" }
         val whereClauses = primaryKeyValues.keys.joinToString(" AND ") { "\"$it\" = ?" }
         val sql = "UPDATE \"$tableName\" SET $setClauses WHERE $whereClauses"
@@ -429,8 +512,8 @@ class SqliteEngine : DatabaseEngine {
         }
     }
 
-    override fun deleteRow(tableName: String, primaryKeyValues: Map<String, Any?>) {
-        if (primaryKeyValues.isEmpty()) return
+    override fun deleteRow(tableName: String, primaryKeyValues: Map<String, Any?>): Unit = synchronized(lock) {
+        if (primaryKeyValues.isEmpty()) return@synchronized
         val whereClauses = primaryKeyValues.keys.joinToString(" AND ") { "\"$it\" = ?" }
         val sql = "DELETE FROM \"$tableName\" WHERE $whereClauses"
 
@@ -444,7 +527,7 @@ class SqliteEngine : DatabaseEngine {
 
     // ── Export ──────────────────────────────────────────────────────
 
-    override fun exportToSql(): String {
+    override fun exportToSql(): String = synchronized(lock) {
         val sb = StringBuilder()
         sb.appendLine("-- DB Studio SQLite Export")
         sb.appendLine("-- Generated: ${java.time.LocalDateTime.now()}")
@@ -498,11 +581,11 @@ class SqliteEngine : DatabaseEngine {
             }
         }
 
-        return sb.toString()
+        sb.toString()
     }
 
-    override fun executeRaw(sql: String): Int {
-        return conn().createStatement().use { stmt ->
+    override fun executeRaw(sql: String): Int = synchronized(lock) {
+        conn().createStatement().use { stmt ->
             if (sql.trim().uppercase().let {
                     it.startsWith("SELECT") || it.startsWith("PRAGMA")
                 }) {
@@ -514,10 +597,10 @@ class SqliteEngine : DatabaseEngine {
         }
     }
 
-    override fun executeQuery(sql: String): QueryResult {
+    override fun executeQuery(sql: String): QueryResult = synchronized(lock) {
         val trimmed = sql.trim()
         val startTime = System.currentTimeMillis()
-        return conn().createStatement().use { stmt ->
+        conn().createStatement().use { stmt ->
             val hasResultSet = stmt.execute(trimmed)
             val elapsed = System.currentTimeMillis() - startTime
             if (hasResultSet) {

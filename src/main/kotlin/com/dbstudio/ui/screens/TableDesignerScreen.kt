@@ -48,6 +48,29 @@ fun TableDesignerScreen(
         }
     }
 
+    // Plan B: Guardado automático silencioso si el usuario olvida hacer clic en "Guardar Esquema"
+    LaunchedEffect(viewModel.hasUnsavedChanges, viewModel.columns.size) {
+        if (viewModel.hasUnsavedChanges && engine != null && tableName != null && viewModel.columns.isNotEmpty()) {
+            kotlinx.coroutines.delay(4000)
+            if (viewModel.hasUnsavedChanges) {
+                viewModel.saveChanges(engine, tableName) {
+                    onSchemaSaved()
+                }
+            }
+        }
+    }
+
+    // Plan B: Si el usuario sale de la pantalla o cambia de tabla teniendo cambios pendientes, se guardan automáticamente
+    DisposableEffect(tableName) {
+        onDispose {
+            if (viewModel.hasUnsavedChanges && engine != null && tableName != null && viewModel.columns.isNotEmpty()) {
+                viewModel.saveChanges(engine, tableName) {
+                    onSchemaSaved()
+                }
+            }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -91,7 +114,7 @@ fun TableDesignerScreen(
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Text(
-                                    "Cambios Sin Guardar",
+                                    "Auto-guardando (Plan B activo)",
                                     style = MaterialTheme.typography.labelSmall,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     color = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -240,7 +263,9 @@ fun TableDesignerScreen(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .horizontalScroll(rememberScrollState()),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -269,6 +294,11 @@ fun TableDesignerScreen(
                     onClick = { viewModel.addPreset(ColumnPresets.correo()) },
                     label = { Text("+ Correo") },
                     leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                )
+                AssistChip(
+                    onClick = { viewModel.addPreset(ColumnPresets.celular()) },
+                    label = { Text("+ Celular") },
+                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(14.dp)) }
                 )
                 AssistChip(
                     onClick = { viewModel.addPreset(ColumnPresets.fechaCreacion()) },

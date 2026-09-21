@@ -188,7 +188,7 @@ fun UserManualDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "DataBase Studio v1.0 — SQLite & Microsoft Access Manager",
+                            "DataBase Studio v2.0 — SQLite & Microsoft Access Manager",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -398,10 +398,11 @@ val manualTopics = listOf(
             "+ Cédula: Campo numérico de tipo LONG con restricción de unicidad.",
             "+ Nombre y + Apellido: Campos de texto estándar para identificación de personas.",
             "+ Correo: Campo de texto VARCHAR(150).",
+            "+ Celular: Campo de teléfono móvil VARCHAR(20).",
             "+ Fecha Creación: Campo de Fecha y Hora con valor predeterminado CURRENT_TIMESTAMP.",
             "Preservación de datos: Al hacer clic en 'Guardar Esquema', los datos ya existentes en la tabla se preservan automáticamente."
         ),
-        tags = listOf("plantillas", "cedula", "nombre", "apellido", "fecha_creacion", "presets")
+        tags = listOf("plantillas", "cedula", "nombre", "apellido", "correo", "celular", "fecha_creacion", "presets")
     ),
     ManualTopic(
         title = "Vista de Datos: Inserción, Edición y Exportación CSV/JSON",
@@ -439,14 +440,41 @@ val manualTopics = listOf(
         tags = listOf("relaciones", "foreign key", "fk", "editar relacion", "eliminar relacion", "cascade")
     ),
     ManualTopic(
+        title = "Relaciones Seguras: Claves Foráneas (FK) y Protección de Datos",
+        category = ManualCategory.DIAGRAM,
+        content = "Aprende a vincular tablas correctamente mediante Claves Foráneas sin comprometer tus datos personales ni generar inconsistencias:",
+        keyPoints = listOf(
+            "Uso de Identificadores (IDs): Una Clave Foránea (FK) debe almacenar el identificador de la otra tabla (ej. 'cliente_id' o 'id_cliente' que apunta a 'clientes.id').",
+            "No usar columnas personales como FK: Nunca uses campos como 'nombre', 'celular', 'correo' o 'cédula' como clave foránea; esos campos contienen información descriptiva personal y no deben reemplazarse por IDs.",
+            "Botón de Creación Rápida de FK: En el diálogo de relaciones, si tu tabla no tiene una columna de vínculo, DB Studio te ofrece el botón directo 'Crear y usar columna [tabla]_id' para generarla al instante con el tipo correcto.",
+            "Advertencias Automáticas: El sistema te alertará en color amarillo si seleccionas accidentalmente una columna de datos personales como clave foránea.",
+            "Preservación Total de Datos: Al crear o modificar relaciones y esquemas, DB Studio preserva el 100% de los registros existentes sin importar mayúsculas o minúsculas en los nombres de columnas."
+        ),
+        tags = listOf("relaciones", "foreign key", "fk", "clave foranea", "nombre", "celular", "seguridad", "preservacion", "datos")
+    ),
+    ManualTopic(
+        title = "Exportación Completa a Microsoft Excel (.xlsx)",
+        category = ManualCategory.DATA_VIEW,
+        content = "Genera un libro de cálculo Microsoft Excel (.xlsx) nativo que reúne la base de datos completa con una pestaña u hoja independiente para cada tabla existente.",
+        keyPoints = listOf(
+            "Botón en Menú Lateral: Haz clic en el botón verde 'Exportar a Excel (.xlsx)' ubicado directamente en la barra lateral izquierda.",
+            "Multi-Hoja Automático: Cada tabla de la base de datos se guarda en su propia hoja/pestaña dentro de un único archivo .xlsx.",
+            "Formato y Estilos Profesionales: Fila 1 destacada con encabezados en color verde esmeralda y texto blanco; auto-ajuste de ancho de columnas y tipos de datos preservados (números, booleanos, textos).",
+            "Accesos Alternativos: Disponible también en el Menú Archivo > Exportar como Excel, en el Diálogo de Exportación y en la Paleta de Comandos (Ctrl + K).",
+            "Compatibilidad Universal: Archivos 100% compatibles con Microsoft Excel, Google Sheets, LibreOffice Calc y Apple Numbers."
+        ),
+        tags = listOf("excel", "xlsx", "exportar", "hoja de calculo", "tablas", "reporte", "descargar", "sheets")
+    ),
+    ManualTopic(
         title = "Exportación Global y Copias de Seguridad",
         category = ManualCategory.COMMANDS_THEME,
         content = "Herramientas integradas para interoperabilidad y migración de tus bases de datos:",
         keyPoints = listOf(
+            "Exportar a Excel (.xlsx): Exporta todas las tablas a un solo libro con una pestaña por cada tabla desde el botón del menú lateral.",
             "Exportar como SQL: Menú Archivo > Exportar como SQL para generar el archivo .sql completo con sentencias DDL e INSERT.",
             "Exportar como Access: Menú Archivo > Exportar como Access (.accdb) para convertir una base de datos SQLite directamente al formato de Microsoft Access.",
             "Guardado automático: Las modificaciones en SQLite y Access se guardan de forma permanente e inmediata al confirmar las operaciones."
         ),
-        tags = listOf("exportar", "sql", "guardar", "backup", "migracion", "access")
+        tags = listOf("exportar", "excel", "xlsx", "sql", "guardar", "backup", "migracion", "access")
     )
 )

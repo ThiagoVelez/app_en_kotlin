@@ -2,7 +2,7 @@
 ; Genera un instalador nativo paso a paso con asistente en espanol, accesos directos y desinstalador.
 
 #define MyAppName "DataBase Studio"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "2.0.0"
 #define MyAppPublisher "DataBase Studio"
 #define MyAppURL "https://github.com/dbstudio"
 #define MyAppExeName "DataBaseStudio.exe"
@@ -27,7 +27,7 @@ DisableProgramGroupPage=yes
 ; Icono del archivo instalador
 SetupIconFile=..\src\main\resources\icon.ico
 OutputDir=..\dist_installer
-OutputBaseFilename=DataBaseStudio_Instalador_v1.0
+OutputBaseFilename=DataBaseStudio_Instalador_v2.0
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern

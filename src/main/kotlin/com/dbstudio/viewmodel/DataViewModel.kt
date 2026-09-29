@@ -236,7 +236,8 @@ class DataViewModel {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    errorMessage = "Error al insertar fila: ${e.message}"
+                    val diag = com.dbstudio.cerebro.Cerebro.diagnoseError(e, tableName)
+                    errorMessage = "${diag.title}: ${diag.friendlyExplanation}"
                 }
             }
         }
@@ -358,7 +359,29 @@ class DataViewModel {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    errorMessage = "Error al actualizar fila: ${e.message}"
+                    val diag = com.dbstudio.cerebro.Cerebro.diagnoseError(e, tableName)
+                    errorMessage = "${diag.title}: ${diag.friendlyExplanation}"
+                }
+            }
+        }
+    }
+
+    /**
+     * Update a single cell directly (inline editing).
+     */
+    fun updateSingleCell(engine: DatabaseEngine, tableName: String, pkValues: Map<String, Any?>, columnName: String, newValue: String?) {
+        scope.launch {
+            try {
+                errorMessage = null
+                engine.updateRow(tableName, pkValues, mapOf(columnName to newValue))
+                withContext(Dispatchers.Main) {
+                    successMessage = "Celda '$columnName' actualizada"
+                    refreshSilently(engine)
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    val diag = com.dbstudio.cerebro.Cerebro.diagnoseError(e, tableName)
+                    errorMessage = "${diag.title}: ${diag.friendlyExplanation}"
                 }
             }
         }
@@ -380,7 +403,8 @@ class DataViewModel {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    errorMessage = "Error al eliminar fila: ${e.message}"
+                    val diag = com.dbstudio.cerebro.Cerebro.diagnoseError(e, tableName)
+                    errorMessage = "${diag.title}: ${diag.friendlyExplanation}"
                 }
             }
         }

@@ -17,6 +17,7 @@ fun FrameWindowScope.AppMenuBar(
     onExportSql: () -> Unit,
     onExportAccdb: () -> Unit,
     onExportExcel: () -> Unit = {},
+    onImportExcel: () -> Unit = {},
     onCloseDatabase: () -> Unit,
     onExit: () -> Unit,
     onNavigate: (Screen) -> Unit,
@@ -29,6 +30,7 @@ fun FrameWindowScope.AppMenuBar(
             Separator()
             Item("Guardar", onClick = onSave, enabled = hasDatabase)
             Separator()
+            Item("Importar desde Excel (.xlsx, .xls)...", onClick = onImportExcel, enabled = hasDatabase)
             Item("Exportar como Excel (.xlsx)...", onClick = onExportExcel, enabled = hasDatabase)
             Item("Exportar como SQL...", onClick = onExportSql, enabled = hasDatabase)
             Item("Exportar como Access (.accdb)...", onClick = onExportAccdb, enabled = hasDatabase)
@@ -38,9 +40,14 @@ fun FrameWindowScope.AppMenuBar(
             Item("Salir", onClick = onExit)
         }
         Menu("Ver") {
+            Item("Panel General", onClick = { onNavigate(Screen.OVERVIEW) }, enabled = hasDatabase)
             Item("Diseñador de Tablas", onClick = { onNavigate(Screen.TABLE_DESIGNER) }, enabled = hasDatabase)
             Item("Vista de Datos", onClick = { onNavigate(Screen.DATA_VIEW) }, enabled = hasDatabase)
+            Item("Consola SQL", onClick = { onNavigate(Screen.SQL_QUERY) }, enabled = hasDatabase)
             Item("Diagrama ER", onClick = { onNavigate(Screen.DIAGRAM) }, enabled = hasDatabase)
+            Separator()
+            Item("Juntar Tablas", onClick = { onNavigate(Screen.JOIN_TABLES) }, enabled = hasDatabase)
+            Item("Consulta ETL", onClick = { onNavigate(Screen.ETL_QUERY) }, enabled = hasDatabase)
         }
         Menu("Ayuda") {
             Item("Manual de Usuario", onClick = onShowUserManual)

@@ -90,6 +90,24 @@ fun CommandPaletteDialog(
                 onExecute = { appViewModel.navigateTo(Screen.DIAGRAM) }
             )
         )
+        actions.add(
+            PaletteAction(
+                title = "Ir a Juntar Tablas",
+                subtitle = "Combinar y consultar datos de múltiples tablas (JOIN)",
+                icon = Icons.Default.CallMerge,
+                category = "Navegación",
+                onExecute = { appViewModel.navigateTo(Screen.JOIN_TABLES) }
+            )
+        )
+        actions.add(
+            PaletteAction(
+                title = "Ir a Consulta ETL",
+                subtitle = "Extraer, filtrar por semilleros y analizar observaciones",
+                icon = Icons.Default.FilterAlt,
+                category = "Navegación",
+                onExecute = { appViewModel.navigateTo(Screen.ETL_QUERY) }
+            )
+        )
 
         // Actions
         actions.add(
@@ -137,6 +155,20 @@ fun CommandPaletteDialog(
                         if (path != null) {
                             appViewModel.exportToExcel(path)
                         }
+                    }
+                }
+            )
+        )
+        actions.add(
+            PaletteAction(
+                title = "Importar desde Excel (.xlsx, .xls)",
+                subtitle = "Cargar hojas de cálculo como tablas en la base de datos",
+                icon = Icons.Default.FileUpload,
+                category = "Acciones",
+                onExecute = {
+                    val path = FileChooser.openExcelFile()
+                    if (path != null) {
+                        appViewModel.importFromExcel(path)
                     }
                 }
             )

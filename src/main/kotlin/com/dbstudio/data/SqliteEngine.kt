@@ -195,9 +195,14 @@ class SqliteEngine : DatabaseEngine {
     // ── Schema: Columns ─────────────────────────────────────────────
 
     override fun addColumn(tableName: String, column: Column): Unit = synchronized(lock) {
-        val typeSql = column.toSqliteTypeSql()
+        val safeCol = if (column.type == ColumnType.AUTOINCREMENT || column.isAutoIncrement) {
+            column.copy(type = ColumnType.INTEGER, isAutoIncrement = false)
+        } else {
+            column
+        }
+        val typeSql = safeCol.toSqliteTypeSql()
         conn().createStatement().use { stmt ->
-            stmt.execute("ALTER TABLE \"$tableName\" ADD COLUMN \"${column.name}\" $typeSql;")
+            stmt.execute("ALTER TABLE \"$tableName\" ADD COLUMN \"${safeCol.name}\" $typeSql;")
         }
     }
 
@@ -208,7 +213,7 @@ class SqliteEngine : DatabaseEngine {
         val newColMap = newColumns.associateBy { it.name.lowercase() }
         val addedCols = newColumns.filter { it.name.lowercase() !in oldNames }
 
-        // Fast path: If all existing columns are preserved and new columns are nullable or have default values
+        // Fast path: If all existing columns are preserved and new columns are nullable or have default values, and NOT unique/pk/autoincrement
         val isOnlyAddingColumns = oldNames.all { it in newNames } &&
                 addedCols.isNotEmpty() &&
                 newColumns.size == oldInfo.columns.size + addedCols.size &&
@@ -216,13 +221,17 @@ class SqliteEngine : DatabaseEngine {
                     val newCol = newColMap[oldCol.name.lowercase()]
                     newCol != null && newCol.name == oldCol.name && newCol.isPrimaryKey == oldCol.isPrimaryKey
                 } &&
-                addedCols.all { it.isNullable || it.defaultValue != null }
+                addedCols.all { !it.isUnique && !it.isPrimaryKey && !it.isAutoIncrement && (it.isNullable || it.defaultValue != null) }
 
         if (isOnlyAddingColumns) {
-            for (col in addedCols) {
-                addColumn(tableName, col)
+            try {
+                for (col in addedCols) {
+                    addColumn(tableName, col)
+                }
+                return@synchronized
+            } catch (_: Exception) {
+                // If fast path fails, fall through to full recreate
             }
-            return@synchronized
         }
 
         // SQLite doesn't support ALTER COLUMN, so we recreate the table

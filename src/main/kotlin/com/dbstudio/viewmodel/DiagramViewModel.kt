@@ -92,18 +92,33 @@ class DiagramViewModel {
     }
 
     /**
-     * Arrange entities in a grid layout automatically.
+     * Arrange entities in an optimal multi-column layout automatically,
+     * packing entities cleanly without overlap based on individual table heights.
      */
-    private fun autoLayout(tableInfos: List<TableInfo>) {
+    fun autoLayout(tableList: List<TableInfo> = tables) {
+        if (tableList.isEmpty()) return
         val positions = mutableMapOf<String, Offset>()
-        val cols = 3 // entities per row
-        tableInfos.forEachIndexed { index, table ->
-            val col = index % cols
-            val row = index / cols
-            positions[table.name] = Offset(
-                x = 40f + col * LAYOUT_SPACING_X,
-                y = 40f + row * (250f + LAYOUT_SPACING_Y)
-            )
+        val cols = if (tableList.size <= 2) tableList.size.coerceAtLeast(1) else 3
+        val colHeights = FloatArray(cols) { 40f }
+
+        tableList.forEach { table ->
+            // Find column with the minimum height
+            var bestCol = 0
+            var minH = colHeights[0]
+            for (c in 1 until cols) {
+                if (colHeights[c] < minH) {
+                    minH = colHeights[c]
+                    bestCol = c
+                }
+            }
+
+            val x = 40f + bestCol * LAYOUT_SPACING_X
+            val y = colHeights[bestCol]
+            positions[table.name] = Offset(x, y)
+
+            // Calculate height of this table box
+            val h = entityHeight(table)
+            colHeights[bestCol] += h + LAYOUT_SPACING_Y
         }
         entityPositions = positions
     }

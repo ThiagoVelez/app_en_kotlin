@@ -53,6 +53,7 @@ fun DiagramScreen(
 
     // Dialog state for editing / managing relationships
     var showManageRelDialog by remember { mutableStateOf(false) }
+    var showIntermediateDialog by remember { mutableStateOf(false) }
     var relationshipToEdit by remember { mutableStateOf<Relationship?>(null) }
     var relationshipToDelete by remember { mutableStateOf<Relationship?>(null) }
 
@@ -143,6 +144,23 @@ fun DiagramScreen(
                         Text("Nueva Relación", style = MaterialTheme.typography.labelMedium)
                     }
 
+                    FilledTonalButton(
+                        onClick = { showIntermediateDialog = true },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.Hub, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Tabla Intermedia (N:M)", style = MaterialTheme.typography.labelMedium)
+                    }
+
+                    FilledTonalButton(
+                        onClick = { viewModel.autoLayout() },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Auto-Organizar", style = MaterialTheme.typography.labelMedium)
+                    }
 
                     VerticalDivider(modifier = Modifier.height(24.dp).padding(horizontal = 4.dp))
 
@@ -413,6 +431,7 @@ fun DiagramScreen(
     if (showManageRelDialog && engine != null) {
         RelationshipDialog(
             engine = engine,
+            availableTables = viewModel.tables.map { it.name },
             initialRelationship = relationshipToEdit,
             onDismiss = {
                 showManageRelDialog = false
@@ -428,6 +447,19 @@ fun DiagramScreen(
             onDeleted = {
                 viewModel.loadDiagram(engine)
                 viewModel.selectRelationship(null)
+            }
+        )
+    }
+
+    // ── Intermediate Table (Many-to-Many N:M) Dialog ─────────
+    if (showIntermediateDialog && engine != null) {
+        com.dbstudio.cerebro.ui.IntermediateTableDialog(
+            engine = engine,
+            availableTables = viewModel.tables.map { it.name },
+            onDismiss = { showIntermediateDialog = false },
+            onSuccess = { _ ->
+                showIntermediateDialog = false
+                viewModel.loadDiagram(engine)
             }
         )
     }

@@ -28,6 +28,7 @@ import com.dbstudio.ui.theme.AppColors
 @Composable
 fun RelationshipDialog(
     engine: DatabaseEngine,
+    availableTables: List<String> = emptyList(),
     initialRelationship: Relationship? = null,
     onDismiss: () -> Unit,
     onCreated: () -> Unit,
@@ -36,7 +37,10 @@ fun RelationshipDialog(
 ) {
     var editingRel by remember { mutableStateOf(initialRelationship) }
     var relationshipsList by remember { mutableStateOf(try { engine.getRelationships() } catch (_: Exception) { emptyList() }) }
-    val tableNames = remember { try { engine.getTableNames() } catch (_: Exception) { emptyList() } }
+    val tableNames = remember(availableTables) {
+        if (availableTables.isNotEmpty()) availableTables
+        else try { engine.getTableNames() } catch (_: Exception) { emptyList() }
+    }
 
     var sourceTable by remember { mutableStateOf(initialRelationship?.sourceTable ?: "") }
     var sourceColumn by remember { mutableStateOf(initialRelationship?.sourceColumn ?: "") }
@@ -49,6 +53,7 @@ fun RelationshipDialog(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
     var relToDelete by remember { mutableStateOf<Relationship?>(null) }
+    var showIntermediateDialog by remember { mutableStateOf(false) }
 
     var sourceTableExpanded by remember { mutableStateOf(false) }
     var sourceColumnExpanded by remember { mutableStateOf(false) }
@@ -360,8 +365,21 @@ fun RelationshipDialog(
                             onClick = {
                                 try {
                                     val targetPk = targetColumns.firstOrNull { it.isPrimaryKey }
-                                    val fkType = targetPk?.type ?: ColumnType.INTEGER
-                                    engine.addColumn(sourceTable, Column(name = suggestedFkCol, type = fkType, isNullable = true))
+                                    val fkType = when (targetPk?.type) {
+                                        ColumnType.AUTOINCREMENT, ColumnType.INTEGER, null -> ColumnType.INTEGER
+                                        ColumnType.LONG -> ColumnType.LONG
+                                        else -> targetPk.type
+                                    }
+                                    engine.addColumn(
+                                        sourceTable,
+                                        Column(
+                                            name = suggestedFkCol,
+                                            type = fkType,
+                                            isNullable = true,
+                                            isPrimaryKey = false,
+                                            isAutoIncrement = false
+                                        )
+                                    )
                                     sourceColumnsRefreshKey++
                                     sourceColumn = suggestedFkCol
                                     successMessage = "Columna '$suggestedFkCol' creada en '$sourceTable' y seleccionada como FK"
@@ -539,6 +557,42 @@ fun RelationshipDialog(
                     }
                 }
 
+                // ── Many-to-Many Guidance & Intermediate Table Creator ──
+                if (relationType == RelationType.MANY_TO_MANY) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Hub, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Relación Muchos a Muchos (N:M)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                            }
+                            Text(
+                                "En bases de datos relacionales, una relación N:M requiere una Tabla Intermedia asociativa que contenga las dos claves foráneas correspondientes hacia ambas entidades.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Button(
+                                onClick = { showIntermediateDialog = true },
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.AutoFixHigh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    if (sourceTable.isNotBlank() && targetTable.isNotBlank() && sourceTable != targetTable)
+                                        "Generar Tabla Intermedia ('${sourceTable.lowercase()}_${targetTable.lowercase()}')"
+                                    else "Crear Tabla Intermedia N:M",
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // ── Existing Relationships List ──────────────────────
                 if (relationshipsList.isNotEmpty()) {
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -650,7 +704,8 @@ fun RelationshipDialog(
                                 relationshipsList = engine.getRelationships()
                                 resetForm()
                             } catch (e: Exception) {
-                                errorMessage = "Error: ${e.message}"
+                                val diag = com.dbstudio.cerebro.Cerebro.diagnoseError(e)
+                                errorMessage = "${diag.title}: ${diag.friendlyExplanation}"
                             }
                         }
                     }
@@ -698,6 +753,22 @@ fun RelationshipDialog(
             },
             dismissButton = {
                 TextButton(onClick = { relToDelete = null }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (showIntermediateDialog) {
+        com.dbstudio.cerebro.ui.IntermediateTableDialog(
+            engine = engine,
+            availableTables = tableNames,
+            initialTableA = sourceTable.ifBlank { null },
+            initialTableB = targetTable.ifBlank { null },
+            onDismiss = { showIntermediateDialog = false },
+            onSuccess = { newTableName ->
+                showIntermediateDialog = false
+                relationshipsList = try { engine.getRelationships() } catch (_: Exception) { emptyList() }
+                successMessage = "Tabla intermedia '$newTableName' creada exitosamente con sus claves foráneas."
+                onCreated()
             }
         )
     }

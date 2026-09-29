@@ -4,6 +4,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,8 +37,9 @@ fun TableDesignerScreen(
     onSchemaSaved: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    var showAddColumn by remember { mutableStateOf(false) }
     var editingColumnIndex by remember { mutableStateOf<Int?>(null) }
+    var showSqlPreview by remember { mutableStateOf(false) }
+    var copiedSqlMessage by remember { mutableStateOf<String?>(null) }
 
     // Load table when it changes
     LaunchedEffect(tableName) {
@@ -83,7 +85,10 @@ fun TableDesignerScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.weight(1f, fill = false),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer,
                     shape = RoundedCornerShape(8.dp),
@@ -99,13 +104,15 @@ fun TableDesignerScreen(
                     }
                 }
                 Spacer(Modifier.width(12.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = if (tableName != null) "Tabla: $tableName" else "Selecciona una tabla",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
+                            color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         if (viewModel.hasUnsavedChanges) {
                             Spacer(Modifier.width(8.dp))
@@ -114,7 +121,7 @@ fun TableDesignerScreen(
                                 shape = RoundedCornerShape(4.dp)
                             ) {
                                 Text(
-                                    "Auto-guardando (Plan B activo)",
+                                    "Cambios pendientes",
                                     style = MaterialTheme.typography.labelSmall,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                     color = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -124,12 +131,16 @@ fun TableDesignerScreen(
                         }
                     }
                     Text(
-                        text = "${viewModel.columns.size} campos configurados — Editor visual de estructura estilo MySQL",
+                        text = "${viewModel.columns.size} campos configurados — Editor visual",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
+
+            Spacer(Modifier.width(12.dp))
 
             if (tableName != null) {
                 Row(
@@ -138,52 +149,89 @@ fun TableDesignerScreen(
                 ) {
                     IconButton(
                         onClick = { viewModel.undo() },
-                        enabled = viewModel.canUndo
+                        enabled = viewModel.canUndo,
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
-                            Icons.Default.Undo,
+                            Icons.AutoMirrored.Filled.Undo,
                             contentDescription = "Deshacer",
                             tint = if (viewModel.canUndo) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                     IconButton(
                         onClick = { viewModel.redo() },
-                        enabled = viewModel.canRedo
+                        enabled = viewModel.canRedo,
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
-                            Icons.Default.Redo,
+                            Icons.AutoMirrored.Filled.Redo,
                             contentDescription = "Rehacer",
                             tint = if (viewModel.canRedo) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
                     if (onNavigateToData != null) {
-                        FilledTonalButton(onClick = { onNavigateToData(tableName) }) {
-                            Icon(Icons.Default.ViewList, contentDescription = null, modifier = Modifier.size(18.dp))
+                        FilledTonalButton(
+                            onClick = { onNavigateToData(tableName) },
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ViewList, contentDescription = null, modifier = Modifier.size(17.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Llenar / Ver Datos")
+                            Text("Ver Datos", maxLines = 1, softWrap = false)
                         }
                     }
-                    OutlinedButton(onClick = { showAddColumn = true }) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    FilledTonalButton(
+                        onClick = { showSqlPreview = !showSqlPreview },
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(if (showSqlPreview) "Ocultar SQL" else "Vista SQL", maxLines = 1, softWrap = false)
+                    }
+                    OutlinedButton(
+                        onClick = { viewModel.showAddColumnDialog = true },
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Añadir Campo")
+                        Text("Añadir Campo", maxLines = 1, softWrap = false)
                     }
                     Button(
                         onClick = {
-                            if (engine != null && tableName != null) {
+                            if (engine != null) {
                                 viewModel.saveChanges(engine, tableName) {
                                     onSchemaSaved()
                                 }
                             }
                         },
-                        enabled = viewModel.hasUnsavedChanges
+                        enabled = viewModel.hasUnsavedChanges,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
                     ) {
-                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(
+                            imageVector = if (viewModel.hasUnsavedChanges) Icons.Default.Save else Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
                         Spacer(Modifier.width(6.dp))
-                        Text("Guardar Esquema")
+                        Text(
+                            text = if (viewModel.hasUnsavedChanges) "Guardar Esquema" else "Guardado",
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
                 }
             }
@@ -276,6 +324,11 @@ fun TableDesignerScreen(
                     color = MaterialTheme.colorScheme.primary
                 )
                 AssistChip(
+                    onClick = { viewModel.addPreset(ColumnPresets.id()) },
+                    label = { Text("+ ID") },
+                    leadingIcon = { Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                )
+                AssistChip(
                     onClick = { viewModel.addPreset(ColumnPresets.cedula()) },
                     label = { Text("+ Cédula") },
                     leadingIcon = { Icon(Icons.Default.Badge, contentDescription = null, modifier = Modifier.size(14.dp)) }
@@ -301,14 +354,24 @@ fun TableDesignerScreen(
                     leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(14.dp)) }
                 )
                 AssistChip(
+                    onClick = { viewModel.addPreset(ColumnPresets.telefono()) },
+                    label = { Text("+ Teléfono") },
+                    leadingIcon = { Icon(Icons.Default.PhoneIphone, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                )
+                AssistChip(
                     onClick = { viewModel.addPreset(ColumnPresets.fechaCreacion()) },
                     label = { Text("+ Fecha Creación") },
                     leadingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(14.dp)) }
                 )
                 AssistChip(
-                    onClick = { showAddColumn = true },
-                    label = { Text("+ Campo Personalizado...") },
-                    leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                    onClick = { viewModel.addPreset(ColumnPresets.observaciones()) },
+                    label = { Text("+ Observaciones") },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Comment, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                )
+                AssistChip(
+                    onClick = { viewModel.addPreset(ColumnPresets.descripcion()) },
+                    label = { Text("+ Descripción") },
+                    leadingIcon = { Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(14.dp)) }
                 )
             }
         }
@@ -388,7 +451,7 @@ fun TableDesignerScreen(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { showAddColumn = true }
+                            .clickable { viewModel.showAddColumnDialog = true }
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         color = MaterialTheme.colorScheme.surface
                     ) {
@@ -412,6 +475,79 @@ fun TableDesignerScreen(
         }
 
         Spacer(Modifier.height(8.dp))
+
+        val generatedDdl = remember(viewModel.columns, tableName, engine?.databaseType) {
+            if (engine?.databaseType == com.dbstudio.model.DatabaseType.ACCESS) {
+                com.dbstudio.model.TableInfo(tableName, viewModel.columns).toCreateAccessSql()
+            } else {
+                com.dbstudio.model.TableInfo(tableName, viewModel.columns).toCreateSqliteSql()
+            }
+        }
+
+        if (showSqlPreview) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().height(160.dp),
+                color = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Column(modifier = Modifier.fillMaxSize().padding(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Code, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "Sentencia SQL DDL Generada (${engine?.databaseType?.displayName ?: "SQLite"}):",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            FilledTonalButton(
+                                onClick = {
+                                    val clipboard = java.awt.Toolkit.getDefaultToolkit().systemClipboard
+                                    clipboard.setContents(java.awt.datatransfer.StringSelection(generatedDdl), null)
+                                    copiedSqlMessage = "¡Copiado!"
+                                },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(copiedSqlMessage ?: "Copiar SQL", style = MaterialTheme.typography.labelSmall)
+                            }
+                            IconButton(
+                                onClick = { showSqlPreview = false },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Cerrar", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.6f),
+                        shape = RoundedCornerShape(6.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        val ddlScroll = rememberScrollState()
+                        Text(
+                            text = generatedDdl,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(10.dp).verticalScroll(ddlScroll)
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
 
         // ── Attributes Legend & Live Table Preview ──────────────
         Row(
@@ -535,13 +671,13 @@ fun TableDesignerScreen(
     }
 
     // ── Dialogs ─────────────────────────────────────────────────
-    if (showAddColumn) {
+    if (viewModel.showAddColumnDialog) {
         ColumnEditDialog(
             title = "Añadir Columna a '$tableName'",
-            onDismiss = { showAddColumn = false },
+            onDismiss = { viewModel.showAddColumnDialog = false },
             onSave = { col ->
                 viewModel.addColumn(col)
-                showAddColumn = false
+                viewModel.showAddColumnDialog = false
             }
         )
     }

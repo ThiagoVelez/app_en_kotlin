@@ -74,4 +74,21 @@ object FileChooser {
             chooser.selectedFile.absolutePath
         } else null
     }
+
+    /**
+     * Show an "Open" dialog filtered to Excel workbook files (.xlsx, .xls).
+     */
+    fun openExcelFile(currentDir: String? = null): String? {
+        val chooser = JFileChooser(currentDir ?: System.getProperty("user.home"))
+        chooser.dialogTitle = "Importar desde Excel a Base de Datos"
+        chooser.fileSelectionMode = JFileChooser.FILES_ONLY
+        chooser.addChoosableFileFilter(
+            FileNameExtensionFilter("Libros de Excel (*.xlsx, *.xls)", "xlsx", "xls")
+        )
+        chooser.isAcceptAllFileFilterUsed = false
+
+        return if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+            chooser.selectedFile.absolutePath
+        } else null
+    }
 }

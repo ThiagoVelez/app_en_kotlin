@@ -4,8 +4,8 @@ package com.dbstudio.model
  * Supported column data types across both SQLite and Access.
  */
 enum class ColumnType(val displayName: String, val sqliteName: String, val accessName: String) {
-    TEXT("Texto", "TEXT", "TEXT"),
-    VARCHAR("Texto Corto", "TEXT", "VARCHAR"),
+    TEXT("Texto", "TEXT", "VARCHAR(255)"),
+    VARCHAR("Texto Corto", "TEXT", "VARCHAR(255)"),
     INTEGER("Entero", "INTEGER", "INTEGER"),
     LONG("Cédula / Numérico", "INTEGER", "LONG"),
     REAL("Decimal / Real", "REAL", "DOUBLE"),
@@ -103,11 +103,32 @@ object ColumnPresets {
         isNullable = true
     )
 
+    fun telefono() = Column(
+        name = "telefono",
+        type = ColumnType.VARCHAR,
+        length = 20,
+        isNullable = true
+    )
+
     fun fechaCreacion() = Column(
         name = "fecha_creacion",
         type = ColumnType.DATETIME,
         isNullable = false,
         defaultValue = "CURRENT_TIMESTAMP"
+    )
+
+    fun observaciones() = Column(
+        name = "observaciones",
+        type = ColumnType.TEXT,
+        isNullable = true,
+        length = 255
+    )
+
+    fun descripcion() = Column(
+        name = "descripcion",
+        type = ColumnType.TEXT,
+        isNullable = true,
+        length = 255
     )
 }
 
@@ -151,6 +172,7 @@ data class Column(
         when {
             isAutoIncrement -> sb.append("INTEGER")
             type == ColumnType.VARCHAR && length != null -> sb.append("VARCHAR($length)")
+            type == ColumnType.VARCHAR -> sb.append("TEXT")
             else -> sb.append(type.sqliteName)
         }
         if (isPrimaryKey) {
@@ -171,7 +193,10 @@ data class Column(
         when {
             isAutoIncrement && isPrimaryKey -> sb.append("COUNTER PRIMARY KEY")
             isAutoIncrement -> sb.append("COUNTER")
-            type == ColumnType.VARCHAR && length != null -> sb.append("VARCHAR($length)")
+            type == ColumnType.VARCHAR && length != null && length <= 255 -> sb.append("VARCHAR($length)")
+            type == ColumnType.VARCHAR && length != null && length > 255 -> sb.append("LONGVARCHAR")
+            type == ColumnType.VARCHAR -> sb.append("VARCHAR(255)")
+            type == ColumnType.TEXT -> sb.append("VARCHAR(255)")
             else -> sb.append(type.accessName)
         }
         if (isPrimaryKey && !isAutoIncrement) {

@@ -58,7 +58,9 @@ class AccessEngine : DatabaseEngine {
 
     internal fun conn(): Connection = synchronized(lock) {
         val current = connection
-        if (current == null || current.isClosed) {
+        val isDead = current == null || current.isClosed || try { !current.isValid(1) } catch (_: Throwable) { true }
+        if (isDead) {
+            try { current?.close() } catch (_: Throwable) {}
             val path = dbPath ?: throw IllegalStateException("Not connected to any database")
             val file = File(path)
             if (!file.exists()) {
@@ -68,6 +70,24 @@ class AccessEngine : DatabaseEngine {
             connection = DriverManager.getConnection("jdbc:ucanaccess://$normalizedPath")
         }
         connection!!
+    }
+
+    private fun <T> executeWithRetry(block: () -> T): T = synchronized(lock) {
+        try {
+            block()
+        } catch (e: Exception) {
+            val msg = e.message ?: ""
+            if (msg.contains("conexión: cerrada", ignoreCase = true) ||
+                msg.contains("connection exception: closed", ignoreCase = true) ||
+                msg.contains("connection is closed", ignoreCase = true) ||
+                (e is java.sql.SQLException && e.sqlState == "08003")) {
+                try { connection?.close() } catch (_: Throwable) {}
+                connection = null
+                block()
+            } else {
+                throw e
+            }
+        }
     }
 
     // ── Schema: Tables ──────────────────────────────────────────────
@@ -107,9 +127,13 @@ class AccessEngine : DatabaseEngine {
                 val nullable = rs.getInt("NULLABLE") == 1
                 val defaultVal = rs.getString("COLUMN_DEF")
                 val colSize = rs.getInt("COLUMN_SIZE")
-                val isAutoInc = sqlType.uppercase() == "COUNTER" ||
-                        (rs.getString("IS_AUTOINCREMENT")?.equals("YES", ignoreCase = true) == true)
                 val isPk = colName in pkColumns
+                val isAutoIncRS = try { rs.getString("IS_AUTOINCREMENT") } catch (_: Exception) { null }
+                val isAutoInc = sqlType.uppercase() == "COUNTER" ||
+                        isAutoIncRS?.trim().equals("YES", ignoreCase = true) ||
+                        sqlType.uppercase().contains("AUTOINCREMENT") ||
+                        (isPk && (sqlType.uppercase() == "SMALLINT" || colName.equals("id", ignoreCase = true))) ||
+                        (defaultVal != null && defaultVal.uppercase().contains("GEN_UUID"))
 
                 val colType = when {
                     isAutoInc -> ColumnType.AUTOINCREMENT
@@ -188,10 +212,15 @@ class AccessEngine : DatabaseEngine {
 
     // ── Schema: Columns ─────────────────────────────────────────────
 
-    override fun addColumn(tableName: String, column: Column): Unit = synchronized(lock) {
-        val typeSql = column.toAccessTypeSql()
+    override fun addColumn(tableName: String, column: Column): Unit = executeWithRetry {
+        val safeCol = if (column.type == ColumnType.AUTOINCREMENT || column.isAutoIncrement) {
+            column.copy(type = ColumnType.INTEGER, isAutoIncrement = false)
+        } else {
+            column
+        }
+        val typeSql = safeCol.toAccessTypeSql()
         conn().createStatement().use { stmt ->
-            stmt.execute("ALTER TABLE [$tableName] ADD COLUMN [${column.name}] $typeSql;")
+            stmt.execute("ALTER TABLE [$tableName] ADD COLUMN [${safeCol.name}] $typeSql;")
         }
     }
 
@@ -212,10 +241,14 @@ class AccessEngine : DatabaseEngine {
                 }
 
         if (isOnlyAddingColumns) {
-            for (col in addedCols) {
-                addColumn(tableName, col)
+            try {
+                for (col in addedCols) {
+                    addColumn(tableName, col)
+                }
+                return@synchronized
+            } catch (_: Exception) {
+                // If fast path fails (e.g. constraints not supported inline in ALTER TABLE), fall through to full schema rewrite
             }
-            return@synchronized
         }
 
         // Full schema rewrite path with safe relationship handling
@@ -438,7 +471,17 @@ class AccessEngine : DatabaseEngine {
         // Filter out autoincrement columns
         val tableInfo = getTableInfo(tableName)
         val autoIncCols = tableInfo.columns.filter { it.isAutoIncrement }.map { it.name.lowercase() }
-        val filteredValues = values.filterKeys { it.lowercase() !in autoIncCols }.toMutableMap()
+        val filteredValues = values.filterKeys { k ->
+            if (k.lowercase() in autoIncCols) false
+            else {
+                val col = tableInfo.columns.find { it.name.equals(k, ignoreCase = true) }
+                val v = values[k]
+                // If column has default value and given value is blank or null, omit it to let DB default apply
+                if (col != null && col.defaultValue != null && (v == null || v.isBlank())) {
+                    false
+                } else true
+            }
+        }.toMutableMap()
 
         // Plan B: Automatic Foreign Key resolution if missing or blank
         val tableRels = try { getRelationships().filter { it.sourceTable.equals(tableName, ignoreCase = true) } } catch (_: Exception) { emptyList() }
@@ -457,8 +500,22 @@ class AccessEngine : DatabaseEngine {
             }
         }
 
+        // Automatic timestamp population for NOT NULL date/datetime columns when omitted
+        for (col in tableInfo.columns) {
+            val nameLower = col.name.lowercase()
+            if (nameLower in autoIncCols) continue
+            val curVal = filteredValues[col.name]
+                ?: filteredValues.entries.firstOrNull { it.key.equals(col.name, ignoreCase = true) }?.value
+            if (curVal.isNullOrBlank()) {
+                if (!col.isNullable && (col.type == ColumnType.DATETIME || col.type == ColumnType.DATE)) {
+                    val nowStr = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
+                    filteredValues[col.name] = nowStr
+                }
+            }
+        }
+
         if (filteredValues.isEmpty()) {
-            // If all columns are autoincrement, just insert a default row
+            // If all columns are autoincrement or using defaults, just insert a default row
             conn().createStatement().use { stmt ->
                 stmt.execute("INSERT INTO [$tableName] DEFAULT VALUES")
             }
@@ -492,6 +549,27 @@ class AccessEngine : DatabaseEngine {
                             ColumnType.LONG -> pstmt.setLong(idx + 1, value.toLongOrNull() ?: 0L)
                             ColumnType.REAL, ColumnType.DECIMAL -> pstmt.setDouble(idx + 1, value.toDoubleOrNull() ?: 0.0)
                             ColumnType.BOOLEAN -> pstmt.setBoolean(idx + 1, value == "1" || value.equals("true", ignoreCase = true))
+                            ColumnType.DATE -> {
+                                try {
+                                    val d = java.sql.Date.valueOf(value.trim())
+                                    pstmt.setDate(idx + 1, d)
+                                } catch (_: Exception) {
+                                    pstmt.setString(idx + 1, value)
+                                }
+                            }
+                            ColumnType.DATETIME -> {
+                                try {
+                                    val cleanVal = value.trim().replace('T', ' ')
+                                    val ts = if (cleanVal.length == 10) {
+                                        java.sql.Timestamp.valueOf("$cleanVal 00:00:00")
+                                    } else {
+                                        java.sql.Timestamp.valueOf(cleanVal)
+                                    }
+                                    pstmt.setTimestamp(idx + 1, ts)
+                                } catch (_: Exception) {
+                                    pstmt.setString(idx + 1, value)
+                                }
+                            }
                             else -> pstmt.setString(idx + 1, value)
                         }
                     }

@@ -1,9 +1,10 @@
 package com.dbstudio.ui
 
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -11,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.dbstudio.ui.components.*
 import com.dbstudio.ui.screens.*
 import com.dbstudio.ui.theme.DBStudioTheme
@@ -33,130 +35,168 @@ fun App(
             color = MaterialTheme.colorScheme.background
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Main content
-                Row(modifier = Modifier.weight(1f)) {
-                    // ── Sidebar ──────────────────────────────────
-                    Sidebar(
-                        databaseName = appViewModel.databaseInfo?.name,
-                        databaseType = appViewModel.databaseInfo?.type,
-                        tables = appViewModel.tables,
-                        selectedTable = appViewModel.selectedTable,
-                        currentScreen = appViewModel.currentScreen,
-                        onTableSelected = { name ->
-                            appViewModel.selectTable(name)
-                        },
-                        onScreenChanged = { screen ->
-                            appViewModel.navigateTo(screen)
-                        },
-                        onNewTable = { appViewModel.showNewTableDialog = true },
-                        onDeleteTable = { appViewModel.showConfirmDeleteTable = true },
-                        onRenameTable = { appViewModel.showRenameTableDialog = true },
-                        onNewRelationship = { appViewModel.showRelationshipDialog = true },
-                        onRenameTableSpecific = { tableName ->
-                            appViewModel.selectTable(tableName)
-                            appViewModel.showRenameTableDialog = true
-                        },
-                        onDeleteTableSpecific = { tableName ->
-                            appViewModel.selectTable(tableName)
-                            appViewModel.showConfirmDeleteTable = true
-                        },
-                        onViewTableData = { tableName ->
-                            appViewModel.selectTable(tableName)
-                            appViewModel.navigateTo(Screen.DATA_VIEW)
-                        },
-                        onDesignTable = { tableName ->
-                            appViewModel.selectTable(tableName)
+                // ── Office Ribbon Top Bar (Excel / Access / Word Style) ──
+                OfficeRibbonBar(
+                    databaseName = appViewModel.databaseInfo?.name,
+                    databaseType = appViewModel.databaseInfo?.type,
+                    tables = appViewModel.tables,
+                    selectedTable = appViewModel.selectedTable,
+                    tableRowCounts = appViewModel.tableRowCounts,
+                    currentScreen = appViewModel.currentScreen,
+                    onScreenChanged = { screen -> appViewModel.navigateTo(screen) },
+                    onTableSelected = { name -> appViewModel.selectTable(name) },
+                    onNewDatabase = { appViewModel.showNewDbDialog = true },
+                    onOpenDatabase = {
+                        val path = com.dbstudio.ui.components.FileChooser.openDatabase()
+                        if (path != null) {
+                            appViewModel.openDatabase(path)
+                        }
+                    },
+                    onNewTable = { appViewModel.showNewTableDialog = true },
+                    onDeleteTable = { tableName ->
+                        appViewModel.selectTable(tableName)
+                        appViewModel.showConfirmDeleteTable = true
+                    },
+                    onRenameTable = { tableName ->
+                        appViewModel.selectTable(tableName)
+                        appViewModel.showRenameTableDialog = true
+                    },
+                    onNewRelationship = { appViewModel.showRelationshipDialog = true },
+                    onOpenIntermediateDialog = { appViewModel.showIntermediateTableDialog = true },
+                    onAddCustomField = {
+                        if (appViewModel.selectedTable == null && appViewModel.tables.isNotEmpty()) {
+                            appViewModel.selectTable(appViewModel.tables.first())
+                        }
+                        if (appViewModel.currentScreen != Screen.TABLE_DESIGNER) {
                             appViewModel.navigateTo(Screen.TABLE_DESIGNER)
-                        },
-                        onOpenCommandPalette = { appViewModel.showCommandPalette = true },
-                        onNewDatabase = { appViewModel.showNewDbDialog = true },
-                        onOpenDatabase = {
-                            val path = com.dbstudio.ui.components.FileChooser.openDatabase()
+                        }
+                        tableDesignerViewModel.showAddColumnDialog = true
+                    },
+                    onInsertRecord = {
+                        if (appViewModel.currentScreen != Screen.DATA_VIEW) {
+                            appViewModel.navigateTo(Screen.DATA_VIEW)
+                        }
+                        dataViewModel.showInsertDialog = true
+                    },
+                    onGenerateMockData = {
+                        if (appViewModel.currentScreen != Screen.DATA_VIEW) {
+                            appViewModel.navigateTo(Screen.DATA_VIEW)
+                        }
+                        dataViewModel.showGenerateDataDialog = true
+                    },
+                    onOpenBrainDoctor = { appViewModel.showBrainDoctorDialog = true },
+                    onBackupDatabase = { appViewModel.createBackupCopy() },
+                    onExportExcel = {
+                        val info = appViewModel.databaseInfo
+                        if (info != null) {
+                            val path = com.dbstudio.ui.components.FileChooser.saveFile(
+                                title = "Exportar Base de Datos a Excel",
+                                defaultName = "${info.name}.xlsx",
+                                extension = "xlsx",
+                                description = "Libro de Excel (*.xlsx)"
+                            )
                             if (path != null) {
-                                appViewModel.openDatabase(path)
-                            }
-                        },
-                        isDarkMode = appViewModel.isDarkMode,
-                        onToggleDarkMode = { appViewModel.toggleDarkMode() },
-                        onShowUserManual = { appViewModel.showUserManual = true },
-                        onExportExcel = {
-                            val info = appViewModel.databaseInfo
-                            if (info != null) {
-                                val path = com.dbstudio.ui.components.FileChooser.saveFile(
-                                    title = "Exportar Base de Datos a Excel",
-                                    defaultName = "${info.name}.xlsx",
-                                    extension = "xlsx",
-                                    description = "Libro de Excel (*.xlsx)"
-                                )
-                                if (path != null) {
-                                    appViewModel.exportToExcel(path)
-                                }
+                                appViewModel.exportToExcel(path)
                             }
                         }
-                    )
-
-                    // ── Main Content Area ────────────────────────
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                        when (appViewModel.currentScreen) {
-                            Screen.OVERVIEW -> {
-                                OverviewScreen(
-                                    appViewModel = appViewModel,
-                                    engine = appViewModel.getEngine(),
-                                    onNavigateTo = { screen -> appViewModel.navigateTo(screen) },
-                                    onSelectTable = { tbl -> appViewModel.selectTable(tbl) }
-                                )
-                            }
-                            Screen.TABLE_DESIGNER -> {
-                                TableDesignerScreen(
-                                    tableName = appViewModel.selectedTable,
-                                    engine = appViewModel.getEngine(),
-                                    viewModel = tableDesignerViewModel,
-                                    onNavigateToData = { tbl ->
-                                        appViewModel.selectTable(tbl)
-                                        appViewModel.navigateTo(Screen.DATA_VIEW)
-                                    },
-                                    onSchemaSaved = {
-                                        appViewModel.notifyDataChanged()
-                                    }
-                                )
-                            }
-                            Screen.DATA_VIEW -> {
-                                DataViewScreen(
-                                    tableName = appViewModel.selectedTable,
-                                    engine = appViewModel.getEngine(),
-                                    viewModel = dataViewModel,
-                                    dataSyncRevision = appViewModel.dataSyncRevision
-                                )
-                            }
-                            Screen.SQL_QUERY -> {
-                                SqlQueryScreen(
-                                    engine = appViewModel.getEngine(),
-                                    viewModel = sqlQueryViewModel,
-                                    tables = appViewModel.tables
-                                )
-                            }
-                            Screen.DIAGRAM -> {
-                                DiagramScreen(
-                                    engine = appViewModel.getEngine(),
-                                    viewModel = diagramViewModel,
-                                    onNewRelationship = {
-                                        appViewModel.showRelationshipDialog = true
-                                    }
-                                )
-                            }
+                    },
+                    onImportExcel = {
+                        val path = com.dbstudio.ui.components.FileChooser.openExcelFile()
+                        if (path != null) {
+                            appViewModel.importFromExcel(path)
                         }
+                    },
+                    onExportSql = {
+                        appViewModel.showExportDialog = true
+                    },
+                    recentDatabases = appViewModel.recentDatabases,
+                    onOpenRecent = { path -> appViewModel.openDatabase(path) },
+                    onAutoOrganizeDiagram = {
+                        if (appViewModel.currentScreen != Screen.DIAGRAM) {
+                            appViewModel.navigateTo(Screen.DIAGRAM)
+                        }
+                        diagramViewModel.autoLayout()
+                    },
+                    onOpenCommandPalette = { appViewModel.showCommandPalette = true },
+                    onShowUserManual = { appViewModel.showUserManual = true },
+                    isDarkMode = appViewModel.isDarkMode,
+                    onToggleDarkMode = { appViewModel.toggleDarkMode() }
+                )
 
-
-
-                        // Loading overlay
-                        if (appViewModel.isLoading) {
-                            Surface(
-                                modifier = Modifier.fillMaxSize(),
-                                color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.3f)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    CircularProgressIndicator()
+                // ── Main Content Area (100% full screen width) ───────────
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    when (appViewModel.currentScreen) {
+                        Screen.OVERVIEW -> {
+                            OverviewScreen(
+                                appViewModel = appViewModel,
+                                engine = appViewModel.getEngine(),
+                                onNavigateTo = { screen -> appViewModel.navigateTo(screen) },
+                                onSelectTable = { tbl -> appViewModel.selectTable(tbl) }
+                            )
+                        }
+                        Screen.TABLE_DESIGNER -> {
+                            TableDesignerScreen(
+                                tableName = appViewModel.selectedTable,
+                                engine = appViewModel.getEngine(),
+                                viewModel = tableDesignerViewModel,
+                                onNavigateToData = { tbl ->
+                                    appViewModel.selectTable(tbl)
+                                    appViewModel.navigateTo(Screen.DATA_VIEW)
+                                },
+                                onSchemaSaved = {
+                                    appViewModel.notifyDataChanged()
                                 }
+                            )
+                        }
+                        Screen.DATA_VIEW -> {
+                            DataViewScreen(
+                                tableName = appViewModel.selectedTable,
+                                engine = appViewModel.getEngine(),
+                                viewModel = dataViewModel,
+                                dataSyncRevision = appViewModel.dataSyncRevision
+                            )
+                        }
+                        Screen.SQL_QUERY -> {
+                            SqlQueryScreen(
+                                engine = appViewModel.getEngine(),
+                                viewModel = sqlQueryViewModel,
+                                tables = appViewModel.tables
+                            )
+                        }
+                        Screen.DIAGRAM -> {
+                            DiagramScreen(
+                                engine = appViewModel.getEngine(),
+                                viewModel = diagramViewModel,
+                                onNewRelationship = {
+                                    appViewModel.showRelationshipDialog = true
+                                }
+                            )
+                        }
+                        Screen.JOIN_TABLES -> {
+                            JoinTablesScreen(
+                                engine = appViewModel.getEngine(),
+                                tables = appViewModel.tables
+                            )
+                        }
+                        Screen.ETL_QUERY -> {
+                            EtlQueryScreen(
+                                engine = appViewModel.getEngine(),
+                                tables = appViewModel.tables,
+                                onTableCreated = {
+                                    appViewModel.refreshTables()
+                                }
+                            )
+                        }
+                    }
+
+                    // Loading overlay
+                    if (appViewModel.isLoading) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.3f)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
                             }
                         }
                     }
@@ -276,6 +316,7 @@ fun App(
         if (appViewModel.showRelationshipDialog && appViewModel.getEngine() != null) {
             RelationshipDialog(
                 engine = appViewModel.getEngine()!!,
+                availableTables = appViewModel.tables,
                 onDismiss = {
                     appViewModel.showRelationshipDialog = false
                     appViewModel.notifyDataChanged()
@@ -305,6 +346,39 @@ fun App(
             )
         }
 
+        // Brain Doctor (Asistente Inteligente) Dialog
+        if (appViewModel.showBrainDoctorDialog && appViewModel.getEngine() != null) {
+            com.dbstudio.cerebro.ui.BrainDoctorDialog(
+                engine = appViewModel.getEngine()!!,
+                onDismiss = { appViewModel.showBrainDoctorDialog = false },
+                onSchemaChanged = {
+                    appViewModel.refreshTables()
+                    appViewModel.notifyDataChanged()
+                    if (appViewModel.currentScreen == Screen.DIAGRAM) {
+                        appViewModel.getEngine()?.let { diagramViewModel.loadDiagram(it) }
+                    }
+                }
+            )
+        }
+
+        // Intermediate Table (Many-to-Many) Dialog
+        if (appViewModel.showIntermediateTableDialog && appViewModel.getEngine() != null) {
+            com.dbstudio.cerebro.ui.IntermediateTableDialog(
+                engine = appViewModel.getEngine()!!,
+                availableTables = appViewModel.tables,
+                onDismiss = { appViewModel.showIntermediateTableDialog = false },
+                onSuccess = { newTable ->
+                    appViewModel.showIntermediateTableDialog = false
+                    appViewModel.refreshTables()
+                    appViewModel.notifyDataChanged()
+                    appViewModel.selectTable(newTable)
+                    if (appViewModel.currentScreen == Screen.DIAGRAM) {
+                        appViewModel.getEngine()?.let { diagramViewModel.loadDiagram(it) }
+                    }
+                }
+            )
+        }
+
         // User Manual Dialog
         if (appViewModel.showUserManual) {
             UserManualDialog(
@@ -320,15 +394,43 @@ fun App(
             )
         }
 
-        // Error Snackbar
+        // Intelligent Error Dialog with Cerebro diagnosis
         appViewModel.errorMessage?.let { error ->
+            val diag = remember(error) {
+                com.dbstudio.cerebro.Cerebro.diagnoseError(RuntimeException(error))
+            }
             AlertDialog(
                 onDismissRequest = { appViewModel.dismissError() },
-                title = { Text("Error") },
-                text = { Text(error) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.width(8.dp))
+                        Text(diag.title, fontWeight = FontWeight.Bold)
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(diag.friendlyExplanation, style = MaterialTheme.typography.bodyMedium)
+                        if (diag.possibleCauses.isNotEmpty()) {
+                            Text("Posibles causas:", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelSmall)
+                            diag.possibleCauses.forEach { cause ->
+                                Text("• $cause", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        if (diag.suggestedActions.isNotEmpty()) {
+                            Text("💡 Sugerencias del Asistente:", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelSmall)
+                            diag.suggestedActions.forEach { action ->
+                                Text("• ${action.title}: ${action.description}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                },
                 confirmButton = {
-                    TextButton(onClick = { appViewModel.dismissError() }) {
-                        Text("Aceptar")
+                    Button(onClick = { appViewModel.dismissError() }) {
+                        Text("Entendido")
                     }
                 }
             )

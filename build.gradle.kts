@@ -26,7 +26,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
             packageName = "DataBaseStudio"
-            packageVersion = "2.0.0"
+            packageVersion = "3.0.0"
             description = "DataBase Studio - SQLite & Access Manager"
             vendor = "DataBaseStudio"
 

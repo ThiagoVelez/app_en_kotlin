@@ -23,6 +23,8 @@ class TableDesignerViewModel {
     var successMessage by mutableStateOf<String?>(null)
         private set
 
+    var showAddColumnDialog by mutableStateOf(false)
+
     private var originalColumns: List<Column> = emptyList()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -117,6 +119,10 @@ class TableDesignerViewModel {
      * Add a column preset with automatic name collision handling.
      */
     fun addPreset(preset: Column) {
+        if (preset.isAutoIncrement && columns.any { it.isAutoIncrement }) {
+            errorMessage = "La tabla ya cuenta con una columna identificadora autoincremental"
+            return
+        }
         var baseName = preset.name
         var finalName = baseName
         var counter = 2
@@ -207,6 +213,8 @@ class TableDesignerViewModel {
         val newPk = !col.isPrimaryKey
         updateColumn(index, col.copy(
             isPrimaryKey = newPk,
+            isAutoIncrement = if (!newPk) false else col.isAutoIncrement,
+            type = if (!newPk && col.type == ColumnType.AUTOINCREMENT) ColumnType.INTEGER else col.type,
             isNullable = if (newPk) false else col.isNullable
         ))
     }
@@ -228,12 +236,31 @@ class TableDesignerViewModel {
         if (index !in columns.indices) return
         val col = columns[index]
         val newAi = !col.isAutoIncrement
-        updateColumn(index, col.copy(
-            isAutoIncrement = newAi,
-            type = if (newAi) ColumnType.AUTOINCREMENT else ColumnType.INTEGER,
-            isPrimaryKey = if (newAi) true else col.isPrimaryKey,
-            isNullable = if (newAi) false else col.isNullable
-        ))
+        if (newAi) {
+            pushHistory()
+            columns = columns.mapIndexed { i, c ->
+                if (i == index) {
+                    c.copy(
+                        isAutoIncrement = true,
+                        type = ColumnType.AUTOINCREMENT,
+                        isPrimaryKey = true,
+                        isNullable = false
+                    )
+                } else if (c.isAutoIncrement) {
+                    c.copy(
+                        isAutoIncrement = false,
+                        type = if (c.type == ColumnType.AUTOINCREMENT) ColumnType.INTEGER else c.type
+                    )
+                } else c
+            }
+            hasUnsavedChanges = true
+            errorMessage = null
+        } else {
+            updateColumn(index, col.copy(
+                isAutoIncrement = false,
+                type = if (col.type == ColumnType.AUTOINCREMENT) ColumnType.INTEGER else col.type
+            ))
+        }
     }
 
     /**
@@ -256,10 +283,16 @@ class TableDesignerViewModel {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    errorMessage = "Error al guardar tabla: ${e.message}"
+                    val diag = com.dbstudio.cerebro.Cerebro.diagnoseError(e, tableName)
+                    errorMessage = "${diag.title}: ${diag.friendlyExplanation}"
                 }
             }
         }
+    }
+
+    fun addColumnInferred(columnName: String) {
+        val col = com.dbstudio.cerebro.Cerebro.toColumn(columnName, isFirstColumn = columns.isEmpty())
+        addColumn(col)
     }
 
     fun dismissMessages() {

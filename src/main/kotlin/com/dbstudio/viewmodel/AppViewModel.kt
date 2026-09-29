@@ -40,13 +40,29 @@ class AppViewModel {
     var showRenameTableDialog by mutableStateOf(false)
     var showExportDialog by mutableStateOf(false)
     var showRelationshipDialog by mutableStateOf(false)
+    var showBrainDoctorDialog by mutableStateOf(false)
+    var showIntermediateTableDialog by mutableStateOf(false)
     var showConfirmDeleteTable by mutableStateOf(false)
     var showUserManual by mutableStateOf(false)
     var showCommandPalette by mutableStateOf(false)
     var isDarkMode by mutableStateOf(false)
+    var isLeftSidebarCollapsed by mutableStateOf(false)
+    var isRightSidebarVisible by mutableStateOf(true)
 
     fun toggleDarkMode() {
         isDarkMode = !isDarkMode
+    }
+
+    fun toggleLeftSidebar() {
+        isLeftSidebarCollapsed = !isLeftSidebarCollapsed
+    }
+
+    fun toggleRightSidebar() {
+        isRightSidebarVisible = !isRightSidebarVisible
+    }
+
+    fun toggleRightTableSidebar() {
+        toggleRightSidebar()
     }
 
     /** Revision counter to trigger silent dynamic data updates across screens */
@@ -71,6 +87,17 @@ class AppViewModel {
         private set
     var healthReport by mutableStateOf(SchemaHealthReport(100, "Excelente", emptyList()))
         private set
+
+    var recentDatabases by mutableStateOf<List<com.dbstudio.data.RecentDatabase>>(
+        try { com.dbstudio.data.RecentDatabasesManager.getRecentDatabases() } catch (_: Exception) { emptyList() }
+    )
+        private set
+
+    fun refreshRecentDatabases() {
+        recentDatabases = try {
+            com.dbstudio.data.RecentDatabasesManager.getRecentDatabases()
+        } catch (_: Exception) { emptyList() }
+    }
 
     // ── Engine ──────────────────────────────────────────────────────
 
@@ -121,6 +148,10 @@ class AppViewModel {
                     selectedTable = null
                     currentScreen = Screen.OVERVIEW
                     statusMessage = "Base de datos '$cleanName' creada con éxito"
+                    try {
+                        com.dbstudio.data.RecentDatabasesManager.recordDatabase(path, type)
+                        refreshRecentDatabases()
+                    } catch (_: Exception) {}
                 }
             } catch (e: Throwable) {
                 e.printStackTrace()
@@ -159,12 +190,43 @@ class AppViewModel {
                     selectedTable = tables.firstOrNull()
                     currentScreen = Screen.OVERVIEW
                     statusMessage = "Base de datos abierta: '${file.name}'"
+                    try {
+                        com.dbstudio.data.RecentDatabasesManager.recordDatabase(file.absolutePath, type)
+                        refreshRecentDatabases()
+                    } catch (_: Exception) {}
                 }
             } catch (e: Throwable) {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
                     errorMessage = "Error al abrir la base de datos: ${e.message ?: e.javaClass.simpleName}"
                     statusMessage = "Error: ${e.message ?: e.javaClass.simpleName}"
+                }
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    /** Creates an immediate snapshot backup file (.bak) of the current database */
+    fun createBackupCopy() {
+        val info = databaseInfo ?: return
+        scope.launch {
+            try {
+                isLoading = true
+                val original = File(info.filePath)
+                if (!original.exists()) throw java.lang.IllegalStateException("El archivo original no existe en disco: ${info.filePath}")
+                val timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
+                val backupFile = File(original.parentFile, "${original.nameWithoutExtension}_backup_$timestamp.${original.extension}")
+                withContext(Dispatchers.IO) {
+                    original.copyTo(backupFile, overwrite = true)
+                }
+                withContext(Dispatchers.Main) {
+                    statusMessage = "Copia de respaldo creada con éxito: ${backupFile.name}"
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    val diag = com.dbstudio.cerebro.Cerebro.diagnoseError(e)
+                    errorMessage = "Error al crear copia: ${diag.friendlyExplanation}"
                 }
             } finally {
                 isLoading = false
@@ -370,6 +432,40 @@ class AppViewModel {
         }
     }
 
+    fun importFromExcel(inputPath: String) {
+        val eng = engine ?: return
+        scope.launch {
+            try {
+                isLoading = true
+                errorMessage = null
+                val result = withContext(Dispatchers.IO) {
+                    ExcelImporter.importDatabase(eng, File(inputPath))
+                }
+                withContext(Dispatchers.Main) {
+                    refreshTables()
+                    notifyDataChanged()
+                    val tblCount = result.tablesImported.size
+                    val rowCount = result.totalRowsImported
+                    if (tblCount > 0) {
+                        statusMessage = "Se importaron $tblCount tablas y $rowCount registros desde Excel con éxito"
+                    } else {
+                        statusMessage = "No se encontraron tablas con datos para importar en el archivo Excel"
+                    }
+                    if (result.errors.isNotEmpty()) {
+                        errorMessage = "Importación completada con algunas advertencias:\n" + result.errors.take(5).joinToString("\n")
+                    }
+                }
+            } catch (e: Throwable) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    errorMessage = "Error al importar desde Excel: ${e.message ?: e.javaClass.simpleName}"
+                }
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
     fun refreshOverviewMetrics() {
         val eng = engine ?: return
         val info = databaseInfo ?: return
@@ -472,7 +568,9 @@ enum class Screen(val displayName: String) {
     TABLE_DESIGNER("Diseñador de Tablas"),
     DATA_VIEW("Vista de Datos"),
     SQL_QUERY("Consola SQL"),
-    DIAGRAM("Diagrama ER")
+    DIAGRAM("Diagrama ER"),
+    JOIN_TABLES("Juntar Tablas"),
+    ETL_QUERY("Consulta ETL")
 }
 
 data class SchemaHealthIssue(

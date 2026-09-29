@@ -1,18 +1,25 @@
+@file:OptIn(ExperimentalFoundationApi::class)
+
 package com.dbstudio.ui.screens
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.dbstudio.data.DatabaseEngine
 import com.dbstudio.ui.components.ConfirmDialog
 import com.dbstudio.ui.components.FileChooser
@@ -33,6 +40,8 @@ fun DataViewScreen(
     dataSyncRevision: Int = 0,
     modifier: Modifier = Modifier
 ) {
+    var editingCell by remember { mutableStateOf<Triple<Int, String, String>?>(null) }
+
     // Load or silently refresh data when table or sync revision changes
     LaunchedEffect(tableName, dataSyncRevision) {
         if (tableName != null && engine != null) {
@@ -52,7 +61,8 @@ fun DataViewScreen(
                 !viewModel.isLoading &&
                 !viewModel.showInsertDialog &&
                 !viewModel.showEditDialog &&
-                !viewModel.showDeleteConfirm
+                !viewModel.showDeleteConfirm &&
+                editingCell == null
             ) {
                 viewModel.refreshSilently(engine)
             }
@@ -71,7 +81,10 @@ fun DataViewScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.weight(1f, fill = false),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Surface(
                     color = MaterialTheme.colorScheme.primaryContainer,
                     shape = RoundedCornerShape(8.dp),
@@ -79,7 +92,7 @@ fun DataViewScreen(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            Icons.Default.ViewList,
+                            Icons.AutoMirrored.Filled.ViewList,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(22.dp)
@@ -87,13 +100,15 @@ fun DataViewScreen(
                     }
                 }
                 Spacer(Modifier.width(12.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = if (tableName != null) "Datos de la Tabla: $tableName" else "Selecciona una tabla",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
+                            color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         if (tableName != null) {
                             Spacer(Modifier.width(10.dp))
@@ -112,10 +127,12 @@ fun DataViewScreen(
                         }
                     }
                     Text(
-                        text = if (tableName != null) "Visualiza, inserta y edita registros con relaciones resueltas"
-                        else "Selecciona una tabla en el menú lateral para ver sus datos",
+                        text = if (tableName != null) "Doble clic en una celda para editarla directamente (estilo Excel) o usa los botones de acción"
+                        else "Selecciona una tabla en la barra superior para ver sus datos",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -130,12 +147,12 @@ fun DataViewScreen(
                     Button(onClick = { viewModel.showInsertDialog = true }) {
                         Icon(Icons.Default.PostAdd, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Nuevo Registro")
+                        Text("Nuevo Registro", maxLines = 1, softWrap = false)
                     }
                     FilledTonalButton(onClick = { viewModel.showGenerateDataDialog = true }) {
                         Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Llenar Datos")
+                        Text("Llenar Datos", maxLines = 1, softWrap = false)
                     }
 
                     // Export CSV / JSON Dropdown
@@ -143,7 +160,7 @@ fun DataViewScreen(
                         OutlinedButton(onClick = { exportMenuExpanded = true }) {
                             Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Exportar")
+                            Text("Exportar", maxLines = 1, softWrap = false)
                         }
                         DropdownMenu(
                             expanded = exportMenuExpanded,
@@ -237,7 +254,7 @@ fun DataViewScreen(
                     }) {
                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Refrescar")
+                        Text("Refrescar", maxLines = 1, softWrap = false)
                     }
                 }
             }
@@ -285,13 +302,13 @@ fun DataViewScreen(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        Icons.Default.ViewList,
+                        Icons.AutoMirrored.Filled.ViewList,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                         modifier = Modifier.size(64.dp)
                     )
                     Spacer(Modifier.height(16.dp))
-                    Text("Selecciona una tabla en el menú lateral", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Selecciona una tabla en la barra superior", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             return
@@ -430,6 +447,7 @@ fun DataViewScreen(
                                     }
                                 }
                                 columns.forEach { col ->
+                                    val isEditingThis = editingCell?.first == index && editingCell?.second == col.name
                                     Box(
                                         modifier = Modifier.width(170.dp).padding(horizontal = 6.dp),
                                         contentAlignment = Alignment.CenterStart
@@ -440,37 +458,113 @@ fun DataViewScreen(
                                             ?: viewModel.relationshipLookups.entries.firstOrNull { it.key.equals(col.name, ignoreCase = true) }?.value
                                         val resolvedFk = lookupMap?.get(rawValue?.toString())
 
-                                        if (resolvedFk != null) {
-                                            // Render resolved relation name
-                                            Surface(
-                                                color = AppColors.foreignKey.copy(alpha = 0.12f),
-                                                shape = RoundedCornerShape(4.dp)
+                                        if (isEditingThis) {
+                                            var cellDraft by remember(editingCell) { mutableStateOf(rawValue?.toString() ?: "") }
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.fillMaxWidth()
                                             ) {
-                                                Row(
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
+                                                BasicTextField(
+                                                    value = cellDraft,
+                                                    onValueChange = { cellDraft = it },
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(4.dp))
+                                                        .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
+                                                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                                                        .onPreviewKeyEvent { keyEvent ->
+                                                            if (keyEvent.type == KeyEventType.KeyDown) {
+                                                                when (keyEvent.key) {
+                                                                    Key.Enter -> {
+                                                                        if (engine != null) {
+                                                                            val pkValues = viewModel.getPrimaryKeyValues(row)
+                                                                            viewModel.updateSingleCell(engine, tableName, pkValues, col.name, cellDraft)
+                                                                        }
+                                                                        editingCell = null
+                                                                        true
+                                                                    }
+                                                                    Key.Escape -> {
+                                                                        editingCell = null
+                                                                        true
+                                                                    }
+                                                                    else -> false
+                                                                }
+                                                            } else false
+                                                        },
+                                                    textStyle = LocalTextStyle.current.copy(
+                                                        fontSize = 12.sp,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    ),
+                                                    singleLine = true
+                                                )
+                                                IconButton(
+                                                    onClick = {
+                                                        if (engine != null) {
+                                                            val pkValues = viewModel.getPrimaryKeyValues(row)
+                                                            viewModel.updateSingleCell(engine, tableName, pkValues, col.name, cellDraft)
+                                                        }
+                                                        editingCell = null
+                                                    },
+                                                    modifier = Modifier.size(22.dp)
                                                 ) {
-                                                    Icon(Icons.Default.Link, contentDescription = null, tint = AppColors.foreignKey, modifier = Modifier.size(12.dp))
-                                                    Spacer(Modifier.width(4.dp))
+                                                    Icon(Icons.Default.Check, contentDescription = "Guardar", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+                                                }
+                                                IconButton(
+                                                    onClick = { editingCell = null },
+                                                    modifier = Modifier.size(22.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Close, contentDescription = "Cancelar", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp))
+                                                }
+                                            }
+                                        } else {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .combinedClickable(
+                                                        onClick = {},
+                                                        onDoubleClick = {
+                                                            if (!col.isPrimaryKey && !col.isAutoIncrement && engine != null) {
+                                                                editingCell = Triple(index, col.name, rawValue?.toString() ?: "")
+                                                            }
+                                                        }
+                                                    )
+                                                    .padding(vertical = 2.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                if (resolvedFk != null) {
+                                                    // Render resolved relation name
+                                                    Surface(
+                                                        color = AppColors.foreignKey.copy(alpha = 0.12f),
+                                                        shape = RoundedCornerShape(4.dp)
+                                                    ) {
+                                                        Row(
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            Icon(Icons.Default.Link, contentDescription = null, tint = AppColors.foreignKey, modifier = Modifier.size(12.dp))
+                                                            Spacer(Modifier.width(4.dp))
+                                                            Text(
+                                                                text = resolvedFk,
+                                                                style = MaterialTheme.typography.bodySmall,
+                                                                fontWeight = FontWeight.Medium,
+                                                                color = MaterialTheme.colorScheme.primary,
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        }
+                                                    }
+                                                } else {
                                                     Text(
-                                                        text = resolvedFk,
+                                                        text = rawValue?.toString() ?: "NULL",
                                                         style = MaterialTheme.typography.bodySmall,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = MaterialTheme.colorScheme.primary,
+                                                        color = if (rawValue == null) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                                        else MaterialTheme.colorScheme.onSurface,
                                                         maxLines = 1,
                                                         overflow = TextOverflow.Ellipsis
                                                     )
                                                 }
                                             }
-                                        } else {
-                                            Text(
-                                                text = rawValue?.toString() ?: "NULL",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = if (rawValue == null) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                                else MaterialTheme.colorScheme.onSurface,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
                                         }
                                     }
                                 }

@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontFamily
@@ -32,6 +33,7 @@ fun SqlQueryScreen(
     modifier: Modifier = Modifier
 ) {
     var exportSuccessMessage by remember { mutableStateOf<String?>(null) }
+    var showHistory by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -119,43 +121,159 @@ fun SqlQueryScreen(
             }
         }
 
-        // ── Quick Query Templates ───────────────────────────────────
-        if (tables.isNotEmpty()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+        // ── Quick Query Templates & History ────────────────────────
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            FilledTonalButton(
+                onClick = { showHistory = !showHistory },
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
             ) {
+                Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(6.dp))
                 Text(
-                    "Plantillas:",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = if (showHistory) "Ocultar Historial" else "Historial (${viewModel.queryHistory.size})",
+                    style = MaterialTheme.typography.labelMedium
                 )
+            }
+
+            VerticalDivider(modifier = Modifier.height(20.dp).padding(horizontal = 2.dp))
+
+            Text(
+                "Fragmentos:",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            if (tables.isNotEmpty()) {
                 val firstTable = tables.first()
                 FilterChip(
                     selected = false,
-                    onClick = { viewModel.setQuery("SELECT * FROM $firstTable LIMIT 20;") },
-                    label = { Text("SELECT * FROM $firstTable") }
+                    onClick = { viewModel.setQuery("SELECT * FROM $firstTable LIMIT 50;") },
+                    label = { Text("SELECT * ($firstTable)") }
                 )
                 FilterChip(
                     selected = false,
                     onClick = { viewModel.setQuery("SELECT COUNT(*) AS total FROM $firstTable;") },
                     label = { Text("COUNT(*) $firstTable") }
                 )
+                FilterChip(
+                    selected = false,
+                    onClick = { viewModel.setQuery("SELECT * FROM $firstTable ORDER BY id DESC LIMIT 20;") },
+                    label = { Text("ORDER BY DESC") }
+                )
                 if (tables.size >= 2) {
                     val secondTable = tables[1]
                     FilterChip(
                         selected = false,
                         onClick = { viewModel.setQuery("SELECT * FROM $firstTable INNER JOIN $secondTable ON $firstTable.id = $secondTable.${firstTable}_id LIMIT 20;") },
-                        label = { Text("JOIN $firstTable y $secondTable") }
+                        label = { Text("JOIN $firstTable + $secondTable") }
                     )
                 }
+            } else {
                 FilterChip(
                     selected = false,
-                    onClick = { viewModel.setQuery("SELECT name, type FROM sqlite_master WHERE type='table';") },
-                    label = { Text("Estructura de BD") }
+                    onClick = { viewModel.setQuery("SELECT 1 AS test;") },
+                    label = { Text("SELECT 1") }
                 )
+            }
+            FilterChip(
+                selected = false,
+                onClick = { viewModel.setQuery("SELECT name, type FROM sqlite_master WHERE type='table';") },
+                label = { Text("Ver Tablas BD") }
+            )
+        }
+
+        // ── Query History Drawer / Card ──────────────────────────────
+        if (showHistory) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp),
+                color = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "Historial de Consultas Recientes (${viewModel.queryHistory.size})",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Text(
+                            "Haz clic en cualquier consulta para recargarla",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    if (viewModel.queryHistory.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                "No hay consultas ejecutadas todavía en esta sesión.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        val histScroll = rememberScrollState()
+                        Column(
+                            modifier = Modifier.fillMaxWidth().verticalScroll(histScroll),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            viewModel.queryHistory.forEach { sql ->
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .clickable {
+                                            viewModel.setQuery(sql)
+                                            showHistory = false
+                                        },
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = sql.replace("\n", " ").trim(),
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        FilledTonalButton(
+                                            onClick = {
+                                                viewModel.setQuery(sql)
+                                                showHistory = false
+                                            },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text("Cargar", fontSize = 11.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

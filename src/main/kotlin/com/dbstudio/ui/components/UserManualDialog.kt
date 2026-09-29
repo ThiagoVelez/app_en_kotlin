@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -76,7 +77,7 @@ fun UserManualDialog(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    Icons.Default.MenuBook,
+                                    Icons.AutoMirrored.Filled.MenuBook,
                                     contentDescription = null,
                                     tint = Color.White,
                                     modifier = Modifier.size(22.dp)
@@ -106,22 +107,11 @@ fun UserManualDialog(
 
                 // ── Search Bar & Filter Chips ───────────────────────
                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
-                    OutlinedTextField(
+                    SearchBarField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        placeholder = { Text("Buscar en el manual (ej. relaciones, primary key, access, fecha)...", style = MaterialTheme.typography.bodySmall) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Limpiar", modifier = Modifier.size(16.dp))
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp),
-                        textStyle = MaterialTheme.typography.bodySmall
+                        placeholder = "Buscar en el manual (ej. relaciones, primary key, access, fecha)...",
+                        modifier = Modifier.fillMaxWidth()
                     )
 
                     Spacer(Modifier.height(8.dp))
@@ -188,7 +178,7 @@ fun UserManualDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "DataBase Studio v2.0 — SQLite & Microsoft Access Manager",
+                            "DataBase Studio v3.0 — SQLite & Microsoft Access Manager",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -275,10 +265,12 @@ private fun TopicCard(topic: ManualTopic) {
 
 enum class ManualCategory(val displayName: String, val icon: ImageVector, val color: Color) {
     ALL("Todos", Icons.Default.AllInclusive, Color(0xFF6366F1)),
+    RIBBON("Cinta Office", Icons.Default.ViewStream, Color(0xFF16A34A)),
     BASICS("General y Métricas", Icons.Default.Dashboard, Color(0xFF3B82F6)),
-    SQL_CONSOLE("Consola SQL", Icons.Default.Terminal, Color(0xFF0EA5E9)),
+    CEREBRO("Cerebro Asistente", Icons.Default.Psychology, Color(0xFF9333EA)),
     TABLE_DESIGNER("Diseñador de Tablas", Icons.Default.TableChart, Color(0xFF8B5CF6)),
-    DATA_VIEW("Vista de Datos", Icons.Default.ViewList, Color(0xFF10B981)),
+    DATA_VIEW("Vista de Datos", Icons.AutoMirrored.Filled.ViewList, Color(0xFF10B981)),
+    SQL_CONSOLE("Consola SQL", Icons.Default.Terminal, Color(0xFF0EA5E9)),
     DIAGRAM("Diagrama ER", Icons.Default.AccountTree, Color(0xFFF59E0B)),
     COMMANDS_THEME("Atajos y Tema", Icons.Default.Bolt, Color(0xFFEC4899))
 }
@@ -293,188 +285,146 @@ data class ManualTopic(
 
 val manualTopics = listOf(
     ManualTopic(
-        title = "Inicio Rápido: Crear y Abrir Bases de Datos",
-        category = ManualCategory.BASICS,
-        content = "DB Studio permite gestionar bases de datos relacionales en dos formatos populares: SQLite (.db) y Microsoft Access (.accdb). No necesitas software adicional instalado en tu equipo.",
+        title = "Cinta de Opciones Superior (Estilo Excel / Access / Word)",
+        category = ManualCategory.RIBBON,
+        content = "DB Studio adopta una barra de herramientas horizontal superior inspirada en Microsoft Office, eliminando los paneles laterales invasivos y otorgando el 100% del ancho de la pantalla a tus datos y diagramas.",
         keyPoints = listOf(
-            "Archivo > Nueva Base de Datos: Ingresa el nombre, elige el tipo (SQLite o Access) y selecciona la carpeta donde guardarla.",
-            "Archivo > Abrir Base de Datos: Selecciona cualquier archivo .db, .sqlite, .accdb o .mdb de tu disco.",
-            "El panel lateral mostrará inmediatamente el estado 'Conectado' y la lista de tablas disponibles."
+            "Pestañas Temáticas: 'Archivo' (gestión de archivos y copias), 'Inicio' (modos de trabajo y tabla activa), 'Insertar' (nuevas entidades, campos y registros), 'Datos' (consultas avanzadas e intercambio) y 'Vista' (diagramas y aspecto).",
+            "Selector Rápido de Tabla: Menú desplegable en la barra superior que muestra la tabla en uso, su cantidad de registros y permite cambiar entre tablas al instante desde cualquier pantalla.",
+            "Contraer / Expandir Cinta: Haz clic en la flecha (^ / v) en la esquina superior derecha para ocultar o mostrar los botones de la cinta y maximizar la altura de trabajo.",
+            "Pantalla 100% Libre: Al no haber barras laterales ocupando espacio, las tablas y cuadrículas se despliegan con máxima amplitud sin recortar ni deformar botones."
         ),
-        tags = listOf("conectar", "crear", "abrir", "sqlite", "access", "accdb", "db")
+        tags = listOf("cinta", "ribbon", "office", "excel", "access", "barra", "pestanas", "inicio", "archivo", "insertar", "datos", "vista", "contraer")
     ),
     ManualTopic(
-        title = "Panel Lateral: Gestión Ágil y Modos de Trabajo",
-        category = ManualCategory.BASICS,
-        content = "El panel lateral izquierdo es el centro neurálgico para navegar entre los 5 modos de trabajo y administrar tus tablas de forma amigable e intuitiva.",
+        title = "Herramienta Insertar: Campo Personalizado en la Cinta",
+        category = ManualCategory.RIBBON,
+        content = "Agrega nuevas columnas a la estructura de tu tabla directamente desde la barra de herramientas superior:",
         keyPoints = listOf(
-            "Modos de Trabajo: Accede con un solo clic a 'Panel General', 'Diseñador de Tablas', 'Vista de Datos', 'Consola SQL' y 'Diagrama ER'.",
-            "Botón '+ Nueva Tabla': Crea una tabla con su clave primaria preconfigurada al instante.",
-            "Buscador de tablas: Filtra instantáneamente entre decenas de tablas por nombre.",
-            "Menú de acciones por tabla (⋮): Ver Datos, Diseñar Estructura, Renombrar o Eliminar sin cambiar de contexto.",
-            "Acceso directo a Relaciones: Crea o gestiona claves foráneas rápidamente con el botón de enlace."
+            "Ubicación en la Cinta: Dirígete a la pestaña 'Insertar' > grupo 'Estructura' > botón 'Campo Personalizado'.",
+            "Navegación Automática: Si estás en otra vista, al hacer clic en 'Campo Personalizado' la aplicación salta automáticamente al Diseñador de Tablas y despliega el formulario de creación.",
+            "Configuración Completa: Define el nombre del campo, tipo de dato, Clave Primaria (PK), No Nulo (NN), Único (UQ), Autoincremental (AI) y valor predeterminado.",
+            "Acceso en el Diseñador: También disponible mediante el botón 'Añadir Campo' en el encabezado del diseñador."
         ),
-        tags = listOf("panel", "sidebar", "tabla", "renombrar", "eliminar", "buscar", "modos")
+        tags = listOf("insertar", "campo personalizado", "nueva columna", "columna", "estructura", "disenador", "ribbon")
     ),
     ManualTopic(
-        title = "Panel General: Métricas KPI y Salud del Esquema (Health Check)",
+        title = "Inicio Rápido: Crear, Abrir y Bases de Datos Recientes",
         category = ManualCategory.BASICS,
-        content = "El Panel General ofrece un tablero ejecutivo estilo Google Cloud con analítica en tiempo real de tu base de datos y auditoría de calidad de esquema.",
+        content = "Gestiona bases de datos relacionales locales en formato SQLite (.db, .sqlite) o Microsoft Access (.accdb, .mdb) sin requerir instalaciones pesadas de servidores.",
         keyPoints = listOf(
-            "Tarjetas KPI: Muestra el total de Tablas, Registros globales almacenados, Relaciones activas y Tamaño del archivo en disco.",
-            "Score de Salud del Esquema: Evalúa la solidez de tu arquitectura relacional (0-100%) detectando tablas sin Clave Primaria o claves foráneas huérfanas.",
-            "Listado de Problemas y Sugerencias: Te advierte si alguna tabla carece de PK para evitar problemas de duplicidad o rendimiento.",
-            "Explorador Rápido de Tablas: Consulta el conteo de registros y campos de cada tabla con botones directos para 'Datos' y 'Diseño'."
+            "Archivo > Nueva BD: Especifica el nombre de la base de datos, el tipo de motor (SQLite o Access) y el directorio de destino.",
+            "Archivo > Abrir BD: Abre cualquier archivo de base de datos existente en tu equipo.",
+            "Archivo > Recientes: Historial persistente que recuerda las bases de datos abiertas anteriormente para saltar entre proyectos en 1 solo clic.",
+            "Píldora de Estado: El encabezado superior muestra el nombre del archivo activo con un indicador verde y el tipo de motor."
         ),
-        tags = listOf("overview", "dashboard", "metricas", "kpi", "salud", "health", "auditoria", "tamano")
+        tags = listOf("conectar", "crear", "abrir", "sqlite", "access", "accdb", "db", "recientes", "historial")
     ),
     ManualTopic(
-        title = "Consola y Editor SQL Avanzado (Estilo BigQuery)",
+        title = "Copias de Respaldo Inmediatas (Snapshots con Fecha y Hora)",
+        category = ManualCategory.BASICS,
+        content = "Genera copias de seguridad de tu base de datos con un solo clic para proteger tu trabajo antes de realizar cambios estructurales masivos:",
+        keyPoints = listOf(
+            "1 Clic en 'Copia Respaldo': Disponible en la pestaña 'Archivo' y en 'Inicio > Operaciones Rápidas'.",
+            "Nomenclatura Automática: Se genera un archivo snapshot nombrado con el patrón '[Nombre]_backup_YYYYMMDD_HHmmss.[ext]' en el mismo directorio.",
+            "No Interrumpe la Sesión: La copia se crea en milisegundos en segundo plano manteniendo la base de datos activa y en línea.",
+            "Seguridad Total: Ideal para respaldar antes de eliminar tablas, ejecutar consultas UPDATE/DELETE masivas o alterar relaciones."
+        ),
+        tags = listOf("backup", "respaldo", "copia", "seguridad", "snapshot", "archivo", "recuperacion")
+    ),
+    ManualTopic(
+        title = "Cerebro: Asistente Local y Tablas Intermedias Muchos a Muchos (N:M)",
+        category = ManualCategory.CEREBRO,
+        content = "Cerebro es el motor de inteligencia local de DB Studio (100% offline, sin APIs externas) que te asiste en el diseño relacional y previene errores:",
+        keyPoints = listOf(
+            "Tablas Intermedias N:M: Al relacionar entidades de muchos a muchos (ej. Estudiantes y Semilleros), la herramienta 'Insertar > Tabla N:M (Intermedia)' crea automáticamente la tabla asociativa con ambas claves foráneas compuestas.",
+            "Doctor Cerebro: Auditoría relacional que analiza tu base de datos detectando tablas sin PK, índices faltantes y claves huérfanas con sugerencias de remediación.",
+            "Diagnóstico Inteligente de Errores: Intercepta fallos crípticos de SQLite y Access (claves duplicadas, violaciones de FK, bloqueos de archivos) y muestra explicaciones claras en lenguaje natural.",
+            "Inferencia de Tipos en Tiempo Real: Sugiere automáticamente el tipo de columna ideal al tipear su nombre (ej. 'correo' -> VARCHAR, 'precio' -> DECIMAL, 'activo' -> BOOLEAN)."
+        ),
+        tags = listOf("cerebro", "asistente", "muchos a muchos", "intermedia", "n:m", "doctor", "diagnostico", "heuristica", "offline")
+    ),
+    ManualTopic(
+        title = "Diseñador de Tablas: Cuadrícula MySQL y Previsualización SQL en Vivo",
+        category = ManualCategory.TABLE_DESIGNER,
+        content = "Estructura las columnas de tus tablas con precisión visual profesional y previsualiza el código DDL generado en tiempo real:",
+        keyPoints = listOf(
+            "Cuadrícula Estilo MySQL: Modifica Nombre, Tipo de Dato, PK, NN, UQ, AI y Valor Predeterminado en una tabla interactiva.",
+            "Botón 'Vista SQL': Activa una consola inferior que muestra en vivo la sentencia CREATE TABLE o ALTER TABLE correspondiente a tu diseño, con botón para copiar al portapapeles.",
+            "Plantillas Rápidas de Columnas: Inserta con 1 clic campos estándar (+ID, +Cédula, +Nombre, +Apellido, +Correo, +Celular, +Teléfono, +Fecha Creación, +Observaciones, +Descripción).",
+            "Preservación de Datos: Al guardar cambios de esquema, DB Studio migra y preserva el 100% de los datos preexistentes en la tabla.",
+            "Deshacer y Rehacer (Ctrl+Z / Ctrl+Y): Historial completo de hasta 50 pasos para revertir cambios accidentales."
+        ),
+        tags = listOf("disenador", "columnas", "mysql", "pk", "nn", "uq", "ai", "vista sql", "ddl", "plantillas", "deshacer", "preservacion")
+    ),
+    ManualTopic(
+        title = "Vista de Datos: Edición de Celdas en Línea (Doble Clic estilo Excel)",
+        category = ManualCategory.DATA_VIEW,
+        content = "Explora y modifica los registros de cada tabla con la familiaridad de una hoja de cálculo moderna:",
+        keyPoints = listOf(
+            "Edición Rápida con Doble Clic: Haz doble clic sobre cualquier celda para editar su contenido directamente en la cuadrícula.",
+            "Confirmación con Teclado: Presiona 'Enter' para guardar el valor editado inmediatamente en la base de datos, o 'Escape' para cancelar.",
+            "Nuevo Registro: Abre el modal de inserción con validación de tipos y formatos.",
+            "Llenar Datos (Mock): Poblador sintético local guiado por Cerebro para generar 5, 10, 50 o 100 registros realistas en español respetando claves foráneas.",
+            "Exportación Individual: Menú desplegable para descargar la tabla activa en formato CSV (.csv) o JSON (.json)."
+        ),
+        tags = listOf("datos", "edicion", "celda", "doble clic", "excel", "nuevo registro", "llenar datos", "mock", "csv", "json")
+    ),
+    ManualTopic(
+        title = "Importación y Exportación Completa a Microsoft Excel (.xlsx)",
+        category = ManualCategory.DATA_VIEW,
+        content = "Interoperabilidad nativa bidireccional con libros de cálculo de Microsoft Excel (.xlsx):",
+        keyPoints = listOf(
+            "Exportar a Excel (.xlsx): Disponible en 'Archivo > Exportar Excel' o en la pestaña 'Datos'. Genera un libro profesional con una pestaña por cada tabla y encabezados estilizados.",
+            "Importar desde Excel (.xlsx): Disponible en 'Archivo > Importar Excel'. Lee cualquier libro .xlsx, analiza sus hojas, crea automáticamente las tablas correspondientes e inserta sus filas detectando tipos de datos.",
+            "Compatibilidad Universal: Los archivos generados son 100% compatibles con Microsoft Excel, Google Sheets, LibreOffice Calc y Apple Numbers."
+        ),
+        tags = listOf("excel", "xlsx", "exportar", "importar", "hoja de calculo", "sheets", "intercambio")
+    ),
+    ManualTopic(
+        title = "Diagrama Entidad-Relación: Auto-Organización Masonry y Relaciones",
+        category = ManualCategory.DIAGRAM,
+        content = "Mapa interactivo gráfico de tu modelo relacional con tecnología de disposición inteligente:",
+        keyPoints = listOf(
+            "Botón 'Auto-Organizar': Ubicado en la pestaña 'Vista > Diagramas'. Aplica un algoritmo masonry que calcula la altura real de cada tabla según sus columnas y las empaqueta limpiamente sin solaparse.",
+            "Movimiento 100% Libre: Haz clic y arrastra cualquier tabla por el lienzo; las líneas conectoras de relaciones se adaptan dinámicamente en tiempo real.",
+            "Gestión Visual de Relaciones: Haz clic sobre cualquier conector para ver su información y acceder a botones de editar reglas (CASCADE, RESTRICT, SET NULL) o eliminar.",
+            "Controles de Zoom y Centrado: Botones flotantes para acercar (+), alejar (-) o centrar la panorámica de tu diagrama."
+        ),
+        tags = listOf("diagrama", "er", "auto-organizar", "masonry", "relaciones", "foreign key", "fk", "lienzo", "zoom")
+    ),
+    ManualTopic(
+        title = "Consultas Avanzadas: Juntar Tablas (JOIN) y Pipeline ETL",
         category = ManualCategory.SQL_CONSOLE,
-        content = "Ejecuta consultas relacionales arbitrarias en tiempo real con una interfaz inspirada en BigQuery y Cloud SQL Studio.",
+        content = "Herramientas visuales integradas en la pestaña 'Datos' para cruzar información entre múltiples tablas:",
         keyPoints = listOf(
-            "Editor Monospace: Escribe cualquier sentencia SQL (SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER).",
-            "Atajo Ctrl + Enter: Ejecuta la consulta seleccionada al instante sin usar el ratón.",
-            "Chips de Plantillas Rápidas: Inserta con un clic plantillas de SELECT *, COUNT(*), INNER JOIN y CREATE TABLE.",
-            "Métricas de Ejecución: Visualiza el tiempo exacto en milisegundos (ms) y la cantidad de filas afectadas o devueltas.",
-            "Historial de Consultas: Reutiliza consultas ejecutadas anteriormente desde la barra lateral de historial.",
-            "Exportar Resultado a CSV: Descarga la cuadrícula resultante directamente en un archivo .csv listo para Excel."
+            "Juntar Tablas (JOIN): Interfaz gráfica para seleccionar dos tablas, definir los campos de enlace (ej. clientes.id = pedidos.cliente_id) y elegir el tipo de JOIN (INNER, LEFT, RIGHT). Muestra la vista previa del resultado combinado.",
+            "Consulta ETL: Permite extraer columnas de tablas relacionadas, transformarlas y persistirlas como una nueva tabla estructurada en tu base de datos.",
+            "Sin Escribir SQL: Ideal para estudiantes o analistas que necesitan reportes cruzados sin necesidad de escribir sentencias complejas manualmente."
         ),
-        tags = listOf("sql", "query", "consola", "bigquery", "select", "join", "tiempo", "historial", "csv")
+        tags = listOf("join", "juntar tablas", "etl", "consultas avanzadas", "datos", "inner join", "cruce")
     ),
     ManualTopic(
-        title = "Paleta de Comandos Universal (Ctrl + K / F1)",
+        title = "Consola SQL: Editor Monospace, Historial y Snippets",
+        category = ManualCategory.SQL_CONSOLE,
+        content = "Entorno de ejecución de sentencias SQL puras para desarrolladores y administradores de bases de datos:",
+        keyPoints = listOf(
+            "Atajo Ctrl + Enter: Ejecuta la consulta seleccionada al instante sin levantar las manos del teclado.",
+            "Historial de Consultas: Panel lateral que registra automáticamente las sentencias ejecutadas para reutilizarlas con un clic.",
+            "Snippets / Plantillas SQL: Chips para insertar rápidamente esqueletos de sentencias frecuentes (SELECT *, COUNT(*), INNER JOIN, CREATE TABLE).",
+            "Métricas de Rendimiento: Visualiza el tiempo exacto en milisegundos (ms) y el total de filas afectadas o devueltas."
+        ),
+        tags = listOf("sql", "consola", "query", "historial", "snippets", "ctrl+enter", "bigquery", "tiempo")
+    ),
+    ManualTopic(
+        title = "Paleta de Comandos Universal (Ctrl + K) y Tema Oscuro / Claro",
         category = ManualCategory.COMMANDS_THEME,
-        content = "Inspirada en el Omnibox de Google Chrome y Command Palette de VS Code, permite controlar toda la aplicación a la velocidad del pensamiento.",
+        content = "Control total y ergonomía visual con Material 3:",
         keyPoints = listOf(
-            "Abrir Paleta: Presiona Ctrl + K o F1 desde cualquier pantalla de DB Studio.",
-            "Salto Directo: Escribe 'panel', 'diseñador', 'datos', 'consola' o 'diagrama' para cambiar de modo al instante.",
-            "Ir a Tabla: Escribe el nombre de cualquier tabla para saltar de inmediato a sus registros.",
-            "Acciones Globales: Crear nueva tabla, alternar Modo Oscuro/Claro o exportar sin abrir menús.",
-            "Navegación con teclado: Usa las flechas Arriba/Abajo y pulsa Enter para ejecutar la acción."
+            "Paleta de Comandos (Ctrl + K): Busca tablas, pantallas o funciones globales y navega rápidamente con las flechas del teclado y Enter.",
+            "Modo Oscuro / Claro: Alterna en cualquier momento con el botón del sol/luna en la barra superior.",
+            "Manual de Usuario (F1): Accede a esta guía completa en cualquier momento presionando F1 o desde el botón de libro en la barra superior."
         ),
-        tags = listOf("comandos", "ctrl+k", "f1", "omnibox", "atajo", "buscar", "paleta")
-    ),
-    ManualTopic(
-        title = "Tema Oscuro / Claro Profesional (Material 3)",
-        category = ManualCategory.COMMANDS_THEME,
-        content = "DB Studio incorpora un sistema de temas Google Material 3 de alta fidelidad, con contrastes calibrados para reducir la fatiga visual.",
-        keyPoints = listOf(
-            "Botón de Sol / Luna: Ubicado en la barra superior derecha para alternar en un clic.",
-            "Paleta Tonal Google Dark: Tonos profundos de gris grafito con acentos azul índigo para máxima legibilidad.",
-            "Persistencia instantánea: Los colores de cuadrículas, diagramas, editores y menús se sincronizan de inmediato."
-        ),
-        tags = listOf("tema", "dark", "oscuro", "claro", "material3", "modo oscuro")
-    ),
-    ManualTopic(
-        title = "Diseñador de Tablas: Columnas y Atributos",
-        category = ManualCategory.TABLE_DESIGNER,
-        content = "El Diseñador de Tablas proporciona una interfaz visual profesional estilo MySQL para estructurar campos sin escribir código SQL manualmente.",
-        keyPoints = listOf(
-            "PK (Clave Primaria): Identificador único obligatorio para identificar cada registro (ej. id).",
-            "NN (No Nulo): Garantiza que el campo no pueda quedar vacío.",
-            "UQ (Único): Asegura que no existan valores duplicados en esa columna (ej. cédula, correo).",
-            "AI (Autoincremental): El valor numérico se incrementa automáticamente (#1, #2, #3...).",
-            "Predeterminado: Define un valor por defecto para nuevos registros (ej. CURRENT_TIMESTAMP, 0, 'Activo')."
-        ),
-        tags = listOf("pk", "nn", "uq", "ai", "primary key", "unique", "not null", "autoincrement", "columnas")
-    ),
-    ManualTopic(
-        title = "Deshacer y Rehacer en el Diseñador (Ctrl + Z / Ctrl + Y)",
-        category = ManualCategory.TABLE_DESIGNER,
-        content = "Historial completo de modificaciones en la estructura de la tabla para diseñar con total seguridad y confianza.",
-        keyPoints = listOf(
-            "Deshacer (Ctrl + Z): Revierte cambios accidentales en nombres de columnas, tipos de datos o eliminación de campos.",
-            "Rehacer (Ctrl + Y / Ctrl + Shift + Z): Restaura modificaciones deshechas previamente.",
-            "Botones en la Barra de Herramientas: Íconos visuales de Deshacer y Rehacer con estado activo/inactivo."
-        ),
-        tags = listOf("deshacer", "rehacer", "undo", "redo", "ctrl+z", "ctrl+y", "historial")
-    ),
-    ManualTopic(
-        title = "Plantillas Rápidas de Campos y Preservación de Datos",
-        category = ManualCategory.TABLE_DESIGNER,
-        content = "Agrega campos comunes con un solo clic utilizando las plantillas rápidas sobre la cuadrícula:",
-        keyPoints = listOf(
-            "+ Cédula: Campo numérico de tipo LONG con restricción de unicidad.",
-            "+ Nombre y + Apellido: Campos de texto estándar para identificación de personas.",
-            "+ Correo: Campo de texto VARCHAR(150).",
-            "+ Celular: Campo de teléfono móvil VARCHAR(20).",
-            "+ Fecha Creación: Campo de Fecha y Hora con valor predeterminado CURRENT_TIMESTAMP.",
-            "Preservación de datos: Al hacer clic en 'Guardar Esquema', los datos ya existentes en la tabla se preservan automáticamente."
-        ),
-        tags = listOf("plantillas", "cedula", "nombre", "apellido", "correo", "celular", "fecha_creacion", "presets")
-    ),
-    ManualTopic(
-        title = "Vista de Datos: Inserción, Edición y Exportación CSV/JSON",
-        category = ManualCategory.DATA_VIEW,
-        content = "Visualiza y manipula los registros almacenados en cada tabla como una hoja de cálculo moderna y exporta universalmente.",
-        keyPoints = listOf(
-            "+ Añadir Registro: Formulario para insertar una nueva fila con validación de tipos.",
-            "+ Generar Datos: Crea registros de prueba realistas (nombres, correos, cédulas) automáticamente.",
-            "Exportar a CSV y JSON: Menú desplegable 'Exportar' para descargar los datos de la tabla en formato CSV o JSON estructurado.",
-            "Edición en línea: Haz clic en el botón de lápiz de cualquier fila para editar sus valores.",
-            "Sincronización silenciosa: Los datos y claves foráneas se actualizan automáticamente en segundo plano sin parpadeos ni bloqueos."
-        ),
-        tags = listOf("datos", "insertar", "editar", "eliminar", "registros", "exportar csv", "exportar json")
-    ),
-    ManualTopic(
-        title = "Diagrama Entidad-Relación (ER): Movimiento Libre y Navegación",
-        category = ManualCategory.DIAGRAM,
-        content = "Mapa interactivo de tus tablas y relaciones con libertad total de manipulación y exploración gráfica.",
-        keyPoints = listOf(
-            "Movimiento 100% Libre: Haz clic y arrastra cualquier tabla por el lienzo para organizarlas libremente, incluso si tienen relaciones activas.",
-            "Líneas dinámicas: Las líneas conectoras se recalculan y adaptan en tiempo real mientras mueves las entidades.",
-            "Zoom y Centrado: Usa los botones de acercar (+), alejar (-) o centrar para la mejor panorámica."
-        ),
-        tags = listOf("diagrama", "er", "arrastrar", "mover", "lienzo", "zoom")
-    ),
-    ManualTopic(
-        title = "Diagrama ER: Crear, Editar y Eliminar Relaciones",
-        category = ManualCategory.DIAGRAM,
-        content = "Establece y modifica restricciones de clave foránea directamente en el diagrama:",
-        keyPoints = listOf(
-            "Crear Relación: Haz clic en 'Nueva Relación', elige la Tabla y Columna Origen (FK), y la Tabla y Columna Destino (PK).",
-            "Selección interactiva: Haz clic sobre cualquier línea o conector en el diagrama; se resaltará y mostrará una tarjeta flotante con botones directos para 'Editar' o 'Eliminar'.",
-            "Gestionar Relaciones: Modifica sus reglas de integridad referencial (CASCADE, SET NULL, RESTRICT) o bórralas con confirmación."
-        ),
-        tags = listOf("relaciones", "foreign key", "fk", "editar relacion", "eliminar relacion", "cascade")
-    ),
-    ManualTopic(
-        title = "Relaciones Seguras: Claves Foráneas (FK) y Protección de Datos",
-        category = ManualCategory.DIAGRAM,
-        content = "Aprende a vincular tablas correctamente mediante Claves Foráneas sin comprometer tus datos personales ni generar inconsistencias:",
-        keyPoints = listOf(
-            "Uso de Identificadores (IDs): Una Clave Foránea (FK) debe almacenar el identificador de la otra tabla (ej. 'cliente_id' o 'id_cliente' que apunta a 'clientes.id').",
-            "No usar columnas personales como FK: Nunca uses campos como 'nombre', 'celular', 'correo' o 'cédula' como clave foránea; esos campos contienen información descriptiva personal y no deben reemplazarse por IDs.",
-            "Botón de Creación Rápida de FK: En el diálogo de relaciones, si tu tabla no tiene una columna de vínculo, DB Studio te ofrece el botón directo 'Crear y usar columna [tabla]_id' para generarla al instante con el tipo correcto.",
-            "Advertencias Automáticas: El sistema te alertará en color amarillo si seleccionas accidentalmente una columna de datos personales como clave foránea.",
-            "Preservación Total de Datos: Al crear o modificar relaciones y esquemas, DB Studio preserva el 100% de los registros existentes sin importar mayúsculas o minúsculas en los nombres de columnas."
-        ),
-        tags = listOf("relaciones", "foreign key", "fk", "clave foranea", "nombre", "celular", "seguridad", "preservacion", "datos")
-    ),
-    ManualTopic(
-        title = "Exportación Completa a Microsoft Excel (.xlsx)",
-        category = ManualCategory.DATA_VIEW,
-        content = "Genera un libro de cálculo Microsoft Excel (.xlsx) nativo que reúne la base de datos completa con una pestaña u hoja independiente para cada tabla existente.",
-        keyPoints = listOf(
-            "Botón en Menú Lateral: Haz clic en el botón verde 'Exportar a Excel (.xlsx)' ubicado directamente en la barra lateral izquierda.",
-            "Multi-Hoja Automático: Cada tabla de la base de datos se guarda en su propia hoja/pestaña dentro de un único archivo .xlsx.",
-            "Formato y Estilos Profesionales: Fila 1 destacada con encabezados en color verde esmeralda y texto blanco; auto-ajuste de ancho de columnas y tipos de datos preservados (números, booleanos, textos).",
-            "Accesos Alternativos: Disponible también en el Menú Archivo > Exportar como Excel, en el Diálogo de Exportación y en la Paleta de Comandos (Ctrl + K).",
-            "Compatibilidad Universal: Archivos 100% compatibles con Microsoft Excel, Google Sheets, LibreOffice Calc y Apple Numbers."
-        ),
-        tags = listOf("excel", "xlsx", "exportar", "hoja de calculo", "tablas", "reporte", "descargar", "sheets")
-    ),
-    ManualTopic(
-        title = "Exportación Global y Copias de Seguridad",
-        category = ManualCategory.COMMANDS_THEME,
-        content = "Herramientas integradas para interoperabilidad y migración de tus bases de datos:",
-        keyPoints = listOf(
-            "Exportar a Excel (.xlsx): Exporta todas las tablas a un solo libro con una pestaña por cada tabla desde el botón del menú lateral.",
-            "Exportar como SQL: Menú Archivo > Exportar como SQL para generar el archivo .sql completo con sentencias DDL e INSERT.",
-            "Exportar como Access: Menú Archivo > Exportar como Access (.accdb) para convertir una base de datos SQLite directamente al formato de Microsoft Access.",
-            "Guardado automático: Las modificaciones en SQLite y Access se guardan de forma permanente e inmediata al confirmar las operaciones."
-        ),
-        tags = listOf("exportar", "excel", "xlsx", "sql", "guardar", "backup", "migracion", "access")
+        tags = listOf("comandos", "ctrl+k", "f1", "atajos", "tema", "dark mode", "modo oscuro", "material3")
     )
 )

@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import com.dbstudio.data.DatabaseEngine
 import com.dbstudio.model.DatabaseInfo
 import com.dbstudio.model.DatabaseType
+import com.dbstudio.ui.components.FileChooser
 import com.dbstudio.viewmodel.AppViewModel
 import com.dbstudio.viewmodel.IssueSeverity
 import com.dbstudio.viewmodel.Screen
@@ -120,6 +121,35 @@ fun OverviewScreen(
                         Spacer(Modifier.width(6.dp))
                         Text("Buscar (Ctrl + K)")
                     }
+                    OutlinedButton(
+                        onClick = {
+                            val path = FileChooser.openExcelFile()
+                            if (path != null) {
+                                appViewModel.importFromExcel(path)
+                            }
+                        },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Importar Excel")
+                    }
+                    FilledTonalButton(
+                        onClick = { appViewModel.showBrainDoctorDialog = true },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Psychology, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Cerebro")
+                    }
+                    FilledTonalButton(
+                        onClick = { appViewModel.createBackupCopy() },
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Backup, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Respaldo")
+                    }
                     Button(
                         onClick = { onNavigateTo(Screen.SQL_QUERY) },
                         shape = RoundedCornerShape(10.dp)
@@ -177,6 +207,97 @@ fun OverviewScreen(
                             Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                             Text("Abrir Base de Datos")
+                        }
+                    }
+                }
+            }
+
+            if (appViewModel.recentDatabases.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    tonalElevation = 1.dp
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.History,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                "Bases de Datos Recientes",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        appViewModel.recentDatabases.forEach { rec ->
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { appViewModel.openDatabase(rec.path) },
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                                            shape = RoundedCornerShape(8.dp),
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = if (rec.type == DatabaseType.SQLITE) Icons.Default.Storage else Icons.Default.FolderOpen,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = rec.name,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = rec.path,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    FilledTonalButton(
+                                        onClick = { appViewModel.openDatabase(rec.path) },
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                        shape = RoundedCornerShape(8.dp)
+                                    ) {
+                                        Text("Abrir", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -342,11 +463,40 @@ fun OverviewScreen(
         }
 
         // ── Tables Overview Grid ─────────────────────────────────────
-        Text(
-            "Tablas de la Base de Datos",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Tablas de la Base de Datos",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        val path = FileChooser.openExcelFile()
+                        if (path != null) {
+                            appViewModel.importFromExcel(path)
+                        }
+                    },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Importar Excel")
+                }
+                Button(
+                    onClick = { appViewModel.showNewTableDialog = true },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Nueva Tabla")
+                }
+            }
+        }
 
         if (appViewModel.tables.isEmpty()) {
             Surface(
@@ -361,10 +511,22 @@ fun OverviewScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text("No hay tablas creadas todavía", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Button(onClick = { appViewModel.showNewTableDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Crear Primera Tabla")
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(onClick = { appViewModel.showNewTableDialog = true }) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Crear Primera Tabla")
+                        }
+                        OutlinedButton(onClick = {
+                            val path = FileChooser.openExcelFile()
+                            if (path != null) {
+                                appViewModel.importFromExcel(path)
+                            }
+                        }) {
+                            Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Importar de Excel")
+                        }
                     }
                 }
             }
